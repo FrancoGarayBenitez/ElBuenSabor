@@ -19,12 +19,15 @@ public class Imagen {
     @Column(nullable = false)
     private String denominacion;
 
+    @Column(nullable = false)
+    private String url;
+
     @ManyToOne
-    @JoinColumn(name = "id_articulo", nullable = false)
+    @JoinColumn(name = "id_articulo")
     private Articulo articulo;
 
     @ManyToOne
-    @JoinColumn(name = "id_promocion", nullable = false)
+    @JoinColumn(name = "id_promocion")
     private Promocion promocion;
 
     @OneToOne(mappedBy = "imagen")

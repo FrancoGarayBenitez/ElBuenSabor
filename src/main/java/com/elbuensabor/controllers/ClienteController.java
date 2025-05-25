@@ -1,43 +1,59 @@
 package com.elbuensabor.controllers;
 
-import com.elbuensabor.entities.Cliente;
-import com.elbuensabor.services.ClienteService;
+import com.elbuensabor.dto.request.ClienteRegisterDTO;
+import com.elbuensabor.dto.response.ClienteResponseDTO;
+import com.elbuensabor.services.IClienteService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/clientes")
+@RequestMapping("/api/clientes")
+@CrossOrigin(origins = "*")
 public class ClienteController {
 
-    private final ClienteService clienteService;
+    private final IClienteService clienteService;
 
-    public ClienteController(ClienteService clienteService) {
+    @Autowired
+    public ClienteController(IClienteService clienteService) {
         this.clienteService = clienteService;
     }
 
-    @GetMapping("/buscar-email")
-    public Cliente buscarPorEmail(@RequestParam String email) {
-        return clienteService.findByEmail(email).orElseThrow();
+    // REGISTRO DE CLIENTE
+    @PostMapping("/register")
+    public ResponseEntity<ClienteResponseDTO> registerCliente(@Valid @RequestBody ClienteRegisterDTO registerDTO) {
+        ClienteResponseDTO clienteRegistrado = clienteService.registerCliente(registerDTO);
+        return new ResponseEntity<>(clienteRegistrado, HttpStatus.CREATED);
     }
 
-    @PostMapping
-    public Cliente guardar(@RequestBody Cliente cliente) {
-        return clienteService.save(cliente);
-    }
-
+    // OPERACIONES CRUD GENÉRICAS
     @GetMapping
-    public List<Cliente> obtenerTodos() {
-        return clienteService.findAll();
+    public ResponseEntity<List<ClienteResponseDTO>> getAllClientes() {
+        List<ClienteResponseDTO> clientes = clienteService.findAll();
+        return ResponseEntity.ok(clientes);
     }
 
     @GetMapping("/{id}")
-    public Cliente obtenerPorId(@PathVariable Long id) {
-        return clienteService.findById(id).orElseThrow();
+    public ResponseEntity<ClienteResponseDTO> getClienteById(@PathVariable Long id) {
+        ClienteResponseDTO cliente = clienteService.findById(id);
+        return ResponseEntity.ok(cliente);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ClienteResponseDTO> updateCliente(
+            @PathVariable Long id,
+            @Valid @RequestBody ClienteResponseDTO clienteDTO) {
+        ClienteResponseDTO clienteActualizado = clienteService.update(id, clienteDTO);
+        return ResponseEntity.ok(clienteActualizado);
     }
 
     @DeleteMapping("/{id}")
-    public void eliminar(@PathVariable Long id) {
-        clienteService.deleteById(id);
+    public ResponseEntity<Void> deleteCliente(@PathVariable Long id) {
+        clienteService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

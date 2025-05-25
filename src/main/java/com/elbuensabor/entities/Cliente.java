@@ -29,28 +29,20 @@ public class Cliente {
     @Column(nullable = false)
     private String telefono;
 
-    @Column(nullable = false, unique = true)
-    private String email;
-
     @Column(name = "fecha_nacimiento", nullable = false)
     private LocalDate fechaNacimiento;
 
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL)
     private List<Pedido> pedidos = new ArrayList<>();
 
-    @ManyToMany
-    @JoinTable(
-            name = "cliente_domicilio",
-            joinColumns = @JoinColumn(name = "id_cliente"),
-            inverseJoinColumns = @JoinColumn(name = "id_domicilio")
-    )
+    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Domicilio> domicilios = new ArrayList<>();
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "id_usuario")
     private Usuario usuario;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "id_imagen")
     private Imagen imagen;
 }

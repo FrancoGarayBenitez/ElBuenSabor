@@ -20,7 +20,14 @@ public class Usuario {
     private String auth0Id;
 
     @Column(nullable = false, unique = true)
-    private String username;
+    private String email;
+
+    @Column(nullable = false)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Rol rol = Rol.CLIENTE;
 
     @OneToOne(mappedBy = "usuario")
     private Cliente cliente;

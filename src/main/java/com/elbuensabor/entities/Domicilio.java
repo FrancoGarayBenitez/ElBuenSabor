@@ -29,9 +29,8 @@ public class Domicilio {
     @Column(nullable = false)
     private Integer cp;
 
-    @ManyToOne
-    @JoinColumn(name = "id_localidad", nullable = false)
-    private Localidad localidad;
+    @Column(nullable = false)
+    private String localidad;
 
     @OneToOne(mappedBy = "domicilio")
     private SucursalEmpresa sucursalEmpresa;
@@ -39,6 +38,7 @@ public class Domicilio {
     @OneToMany(mappedBy = "domicilio", cascade = CascadeType.ALL)
     private List<Pedido> pedidos = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "domicilios")
-    private List<Cliente> clientes = new ArrayList<>();
+    @ManyToOne
+    @JoinColumn(name = "id_cliente")
+    private Cliente cliente;
 }
