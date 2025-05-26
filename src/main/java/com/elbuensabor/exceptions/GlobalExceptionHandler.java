@@ -13,6 +13,7 @@ import java.util.Map;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleResourceNotFound(ResourceNotFoundException ex) {
         Map<String, Object> error = new HashMap<>();
@@ -56,6 +57,17 @@ public class GlobalExceptionHandler {
         error.put("message", ex.getMessage());
 
         return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("timestamp", LocalDateTime.now());
+        error.put("status", HttpStatus.CONFLICT.value());
+        error.put("error", "Violación de integridad de datos");
+        error.put("message", "No se puede completar la operación debido a restricciones de datos");
+
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})

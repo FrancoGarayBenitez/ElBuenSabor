@@ -28,6 +28,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll() // Endpoints de login
                         .requestMatchers("/api/clientes").permitAll() // GET All - SOLO PARA TESTING
                         .requestMatchers("/api/clientes/**").permitAll() // GET por ID - SOLO PARA TESTING
+                        .requestMatchers("/api/categorias/**").permitAll()
+                        .requestMatchers("/api/articulos-insumo/**").permitAll() // ArticuloInsumo - SOLO PARA TESTING
+                        .requestMatchers("/api/unidades-medida/**").permitAll() // UnidadMedida - SOLO PARA TESTING
+                        .requestMatchers("/api/articulos-manufacturados/**").permitAll() // ArticuloManufacturado - SOLO PARA TESTING
 
                         // Todos los demás endpoints requieren autenticación
                         .anyRequest().authenticated()

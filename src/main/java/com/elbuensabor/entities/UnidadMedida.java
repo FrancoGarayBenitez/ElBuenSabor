@@ -1,5 +1,6 @@
 package com.elbuensabor.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,5 +25,6 @@ public class UnidadMedida {
     private String denominacion;
 
     @OneToMany(mappedBy = "unidadMedida")
+    @JsonIgnore
     private List<Articulo> articulos = new ArrayList<>();
 }
