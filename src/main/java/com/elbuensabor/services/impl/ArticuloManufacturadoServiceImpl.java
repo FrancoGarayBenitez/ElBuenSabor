@@ -34,6 +34,9 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
     private IArticuloInsumoRepository articuloInsumoRepository;
 
     @Autowired
+    private IManufacturadoDetalleRepository detalleRepository;
+
+    @Autowired
     private ManufacturadoDetalleMapper detalleMapper;
 
     @Autowired
@@ -114,6 +117,9 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
 
         // Actualizar relaciones básicas
         asignarRelacionesBasicas(existingManufacturado, manufacturadoRequestDTO);
+
+        detalleRepository.deleteByArticuloManufacturadoId(id);
+        detalleRepository.flush(); // Forzar eliminación inmediata
 
         // Actualizar detalles (eliminar existentes y crear nuevos)
         existingManufacturado.getDetalles().clear();

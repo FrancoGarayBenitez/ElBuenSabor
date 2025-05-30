@@ -24,6 +24,6 @@ public class ArticuloManufacturado extends Articulo{
     @Column
     private String preparacion;
 
-    @OneToMany(mappedBy = "articuloManufacturado", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "articuloManufacturado", cascade = CascadeType.ALL)
     private List<ArticuloManufacturadoDetalle> detalles = new ArrayList<>();
 }
