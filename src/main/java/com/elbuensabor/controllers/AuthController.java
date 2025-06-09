@@ -8,9 +8,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
+
 public class AuthController {
 
     private final IAuthService authService;
@@ -26,7 +28,7 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/validate")
+    @GetMapping ("/validate")
     public ResponseEntity<Boolean> validateToken(@RequestHeader("Authorization") String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
@@ -34,5 +36,17 @@ public class AuthController {
             return ResponseEntity.ok(isValid);
         }
         return ResponseEntity.ok(false);
+    }
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            if (authService.validateToken(token)) {
+                String email = authService.extractEmailFromToken(token);
+                // Aquí podrías obtener más datos del usuario si es necesario
+                return ResponseEntity.ok(Map.of("email", email, "valid", true));
+            }
+        }
+        return ResponseEntity.ok(Map.of("valid", false));
     }
 }
