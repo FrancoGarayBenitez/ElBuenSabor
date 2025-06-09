@@ -13,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/unidades-medida")
-@CrossOrigin(origins = "*")
+
 public class UnidadMedidaController {
 
     @Autowired
