@@ -48,7 +48,9 @@ public class AuthServiceImpl implements IAuthService {
                     token,
                     cliente.getUsuario().getEmail(),
                     cliente.getUsuario().getRol().name(),
-                    cliente.getUsuario().getIdUsuario()
+                    cliente.getUsuario().getIdUsuario(),
+                    cliente.getNombre(),
+                    cliente.getApellido()
             );
 
         } catch (ResourceNotFoundException | BadCredentialsException e) {
