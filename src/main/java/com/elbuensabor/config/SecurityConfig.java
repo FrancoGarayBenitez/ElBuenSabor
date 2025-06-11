@@ -36,24 +36,41 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos
-                        .requestMatchers("/api/clientes/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // ========== ENDPOINTS PÚBLICOS ==========
+
+                        // Sistema Clásico - Completamente público
+                        .requestMatchers("/api/clientes/register").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/validate-classic").permitAll()
+
+                        // Otros endpoints públicos
                         .requestMatchers("/api/categorias/**").permitAll()
                         .requestMatchers("/api/articulos-insumo/**").permitAll()
                         .requestMatchers("/api/unidades-medida/**").permitAll()
                         .requestMatchers("/api/articulos-manufacturados/**").permitAll()
 
+                        // CRUD de clientes - público para testing
+                        .requestMatchers("/api/clientes").permitAll()
+                        .requestMatchers("/api/clientes/{id}").permitAll()
+
+                        // ========== ENDPOINTS QUE REQUIEREN AUTH0 ==========
+
+                        // Sistema Auth0 - Requiere JWT válido
+                        .requestMatchers("/api/auth/register").authenticated()  // Completar perfil
+                        .requestMatchers("/api/auth/me").authenticated()       // Info usuario Auth0
+                        .requestMatchers("/api/auth/validate").authenticated() // Validar Auth0
+                        .requestMatchers("/api/clientes/me").authenticated()   // Perfil actual
+
+                        // Todas las demás rutas requieren autenticación
                         .anyRequest().authenticated()
-                );
-                /*
+                )
+                // Solo aplicar OAuth2 a rutas específicas
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder())
                                 .jwtAuthenticationConverter(jwtAuthenticationConverter())
                         )
                 );
-                */
 
         return http.build();
     }
