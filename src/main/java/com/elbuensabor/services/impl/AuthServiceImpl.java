@@ -48,7 +48,9 @@ public class AuthServiceImpl implements IAuthService {
                     token,
                     cliente.getUsuario().getEmail(),
                     cliente.getUsuario().getRol().name(),
-                    cliente.getUsuario().getIdUsuario()
+                    cliente.getUsuario().getIdUsuario(),
+                    cliente.getNombre(),
+                    cliente.getApellido()
             );
 
         } catch (ResourceNotFoundException | BadCredentialsException e) {
@@ -59,14 +61,43 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public boolean validateToken(String token) {
         try {
-            return !jwtUtil.isTokenExpired(token);
+            // Verificar que el token no sea nulo o vacío
+            if (token == null || token.trim().isEmpty()) {
+                return false;
+            }
+
+            // Verificar que el token no esté expirado
+            if (jwtUtil.isTokenExpired(token)) {
+                return false;
+            }
+
+            // Intentar extraer el email para verificar que el token es válido
+            String email = jwtUtil.extractUsername(token);
+
+            // Verificar que el email no sea nulo
+            if (email == null || email.trim().isEmpty()) {
+                return false;
+            }
+
+            // Opcional: Verificar que el usuario aún existe en la base de datos
+            boolean userExists = clienteRepository.existsByUsuarioEmail(email);
+
+            return userExists;
+
         } catch (Exception e) {
+            // Log del error para debugging
+            System.err.println("Error validating token: " + e.getMessage());
             return false;
         }
     }
 
     @Override
     public String extractEmailFromToken(String token) {
-        return jwtUtil.extractUsername(token);
+        try {
+            return jwtUtil.extractUsername(token);
+        } catch (Exception e) {
+            System.err.println("Error extracting email from token: " + e.getMessage());
+            return null;
+        }
     }
 }
