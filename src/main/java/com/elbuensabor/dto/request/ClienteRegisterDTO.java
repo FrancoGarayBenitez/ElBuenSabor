@@ -47,4 +47,6 @@ public class ClienteRegisterDTO {
 
     @NotBlank(message = "La confirmación de contraseña es obligatoria")
     private String confirmPassword;
+
+    private String auth0Id;
 }
