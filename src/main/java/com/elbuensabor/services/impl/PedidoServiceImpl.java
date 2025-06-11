@@ -29,7 +29,7 @@ public class PedidoServiceImpl implements IPedidoService {
     private IDomicilioRepository domicilioRepository;
 
     @Autowired
-    private IArticuloRepository articuloRepository;
+    private IArticuloManufacturadoRepository articuloRepository;
 
     @Autowired
     private IArticuloInsumoRepository articuloInsumoRepository;

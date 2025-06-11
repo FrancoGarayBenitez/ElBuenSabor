@@ -22,6 +22,7 @@ public class PedidoResponseDTO {
     // Información del cliente
     private Long idCliente;
     private String nombreCliente;
+    private String apellidoCliente;
     private String telefonoCliente;
 
     // Información del domicilio (si es delivery)
