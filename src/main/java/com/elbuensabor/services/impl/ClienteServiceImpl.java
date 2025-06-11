@@ -69,4 +69,11 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
         return mapper.toDTO(savedCliente);
     }
 
+    @Override
+    public ClienteResponseDTO findByEmail(String email) {
+        Cliente cliente = repository.findByUsuarioEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con el email: " + email));
+        return mapper.toDTO(cliente);
+    }
+
 }

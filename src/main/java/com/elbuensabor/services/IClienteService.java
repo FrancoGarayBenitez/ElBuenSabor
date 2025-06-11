@@ -7,4 +7,6 @@ import com.elbuensabor.entities.Cliente;
 public interface IClienteService extends IGenericService<Cliente, Long, ClienteResponseDTO> {
     ClienteResponseDTO registerCliente(ClienteRegisterDTO registerDTO);
 
+    ClienteResponseDTO findByEmail(String email);
+
 }
