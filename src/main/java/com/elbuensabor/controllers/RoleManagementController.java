@@ -4,6 +4,7 @@ import com.elbuensabor.entities.Rol;
 import com.elbuensabor.services.IRoleManagementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize; // <-- Importante
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -25,17 +26,13 @@ public class RoleManagementController {
      * Cambiar rol de un usuario (solo ADMIN puede hacer esto)
      */
     @PutMapping("/change-role/{clienteId}")
+    @PreAuthorize("hasRole('ADMIN')") // <-- 1. AHORA LA SEGURIDAD ES DECLARATIVA
     public ResponseEntity<?> changeUserRole(
             @PathVariable Long clienteId,
-            @RequestBody Map<String, String> request,
-            @AuthenticationPrincipal Jwt jwt) {
+            @RequestBody Map<String, String> request) { // <-- 2. Ya no necesitamos el JWT aquí
 
         try {
-            // Verificar que quien hace la petición es ADMIN
-            if (!roleManagementService.isAdmin(jwt.getSubject())) {
-                return ResponseEntity.status(403).body("Solo los administradores pueden cambiar roles");
-            }
-
+            // Ya no es necesaria la verificación manual con if
             String newRole = request.get("role");
             Rol rol = Rol.valueOf(newRole.toUpperCase());
 
@@ -51,12 +48,10 @@ public class RoleManagementController {
      * Listar todos los usuarios con sus roles (solo ADMIN)
      */
     @GetMapping("/users")
-    public ResponseEntity<?> getAllUsersWithRoles(@AuthenticationPrincipal Jwt jwt) {
+    @PreAuthorize("hasRole('ADMIN')") // <-- 3. PROTEGIDO CON LA ANOTACIÓN
+    public ResponseEntity<?> getAllUsersWithRoles() { // <-- 4. Ya no necesitamos el JWT aquí
         try {
-            if (!roleManagementService.isAdmin(jwt.getSubject())) {
-                return ResponseEntity.status(403).body("Solo los administradores pueden ver esta información");
-            }
-
+            // La anotación @PreAuthorize ya hizo el trabajo de seguridad
             return ResponseEntity.ok(roleManagementService.getAllUsersWithRoles());
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());

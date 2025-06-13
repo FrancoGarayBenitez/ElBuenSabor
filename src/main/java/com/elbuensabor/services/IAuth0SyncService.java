@@ -33,5 +33,5 @@ public interface IAuth0SyncService {
      * @param userData Mapa con los datos del usuario (auth0Id, email, name, etc.)
      * @return ClienteResponseDTO con la información del cliente creado/actualizado
      */
-    ClienteResponseDTO syncUserFromUserData(Map<String, Object> userData);
+    ClienteResponseDTO syncUserFromUserData(Map<String, Object> userData, Jwt jwt);
 }

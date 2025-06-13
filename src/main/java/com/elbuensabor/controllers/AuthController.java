@@ -42,12 +42,13 @@ public class AuthController {
      */
     @PostMapping("/callback-direct")
     public ResponseEntity<ClienteResponseDTO> handleAuth0CallbackDirect(
-            @RequestBody Map<String, Object> userData) {
+            @RequestBody Map<String, Object> userData,
+            @AuthenticationPrincipal Jwt jwt) { // <-- 1. Añade @AuthenticationPrincipal Jwt jwt
         try {
             System.out.println("Recibiendo datos directos del usuario: " + userData);
 
-            // Crear cliente usando los datos enviados directamente
-            ClienteResponseDTO cliente = auth0SyncService.syncUserFromUserData(userData);
+            // 2. Pasa el token JWT al servicio
+            ClienteResponseDTO cliente = auth0SyncService.syncUserFromUserData(userData, jwt);
             return ResponseEntity.ok(cliente);
         } catch (Exception e) {
             System.out.println("Error en callback-direct: " + e.getMessage());
@@ -81,7 +82,7 @@ public class AuthController {
         response.put("valid", true);
         response.put("sub", jwt.getSubject());
         response.put("email", jwt.getClaimAsString("email"));
-        response.put("role", cliente.getEmail()); // Obtener rol desde nuestra BD
+        response.put("role", cliente.getRol()); // Obtener rol desde nuestra BD
         response.put("cliente", cliente);
 
         return ResponseEntity.ok(response);
