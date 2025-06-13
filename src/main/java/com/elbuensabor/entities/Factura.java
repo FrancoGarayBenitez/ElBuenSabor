@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "factura")
@@ -24,9 +26,7 @@ public class Factura {
     @Column(name = "nro_comprobante", nullable = false, unique = true)
     private String nroComprobante;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "forma_pago", nullable = false)
-    private FormaPago formaPago;
+    // REMOVIDO: FormaPago - ahora está en cada Pago individual
 
     @Column(nullable = false)
     private Double subTotal;
@@ -40,10 +40,42 @@ public class Factura {
     @Column(name="total_venta", nullable = false)
     private Double totalVenta;
 
-    @OneToOne(mappedBy = "factura", cascade = CascadeType.ALL, orphanRemoval = true)
-    private DatosMercadoPago datosMercadoPago;
+    // REMOVIDO: DatosMercadoPago - ahora está en cada Pago individual
 
     @OneToOne
     @JoinColumn(name = "id_pedido")
     private Pedido pedido;
+
+    // Nueva relación con pagos
+    @OneToMany(mappedBy = "factura", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Pago> pagos = new ArrayList<>();
+
+    // Métodos de conveniencia
+    public void addPago(Pago pago) {
+        pagos.add(pago);
+        pago.setFactura(this);
+    }
+
+    public void removePago(Pago pago) {
+        pagos.remove(pago);
+        pago.setFactura(null);
+    }
+
+    // Método útil para obtener el total pagado
+    public Double getTotalPagado() {
+        return pagos.stream()
+                .filter(pago -> pago.getEstado() == EstadoPago.APROBADO)
+                .mapToDouble(Pago::getMonto)
+                .sum();
+    }
+
+    // Método para verificar si está completamente pagada
+    public boolean isCompletamentePagada() {
+        return getTotalPagado() >= totalVenta;
+    }
+
+    // Método para obtener el saldo pendiente
+    public Double getSaldoPendiente() {
+        return totalVenta - getTotalPagado();
+    }
 }

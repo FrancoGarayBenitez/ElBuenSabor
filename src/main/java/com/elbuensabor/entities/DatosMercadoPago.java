@@ -1,3 +1,4 @@
+
 package com.elbuensabor.entities;
 
 import jakarta.persistence.*;
@@ -39,7 +40,8 @@ public class DatosMercadoPago {
     @Column(name = "date_approved")
     private LocalDateTime dateApproved;
 
+    // CAMBIO: Ahora se relaciona con Pago en lugar de Factura
     @OneToOne
-    @JoinColumn(name = "id_factura", nullable = false)
-    private Factura factura;
+    @JoinColumn(name = "id_pago", nullable = false)
+    private Pago pago;
 }
