@@ -22,7 +22,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/mercadopago")
-@CrossOrigin(originPatterns = "*", allowCredentials = "true")
+
 public class MercadoPagoController {
 
     private static final Logger logger = LoggerFactory.getLogger(MercadoPagoController.class);

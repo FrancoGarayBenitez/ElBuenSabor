@@ -20,7 +20,8 @@ public class PedidoRequestDTO {
     private String tipoEnvio; // "DELIVERY" o "TAKE_AWAY"
 
     private Long idDomicilio; // Solo si es DELIVERY
-
+    @NotNull(message = "La sucursal es obligatoria")
+    private Long idSucursal;
     @Valid
     @NotEmpty(message = "El pedido debe tener al menos un producto")
     private List<DetallePedidoRequestDTO> detalles;
