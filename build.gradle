@@ -46,6 +46,10 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	//sdk auth0
+	implementation("com.auth0:auth0:1.45.0")
+	//security
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
 }
 

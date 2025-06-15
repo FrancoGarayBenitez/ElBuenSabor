@@ -9,6 +9,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
@@ -17,6 +18,12 @@ public class SecurityConfig {
 
     @Autowired
     private CorsConfigurationSource corsConfigurationSource;
+
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private HybridBearerTokenResolver hybridBearerTokenResolver;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -35,17 +42,35 @@ public class SecurityConfig {
                 // Configurar gestión de sesiones
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                // Agregar nuestro filtro JWT personalizado PRIMERO
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // Configurar OAuth2 Resource Server para Auth0 con nuestro resolver personalizado
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(hybridBearerTokenResolver) // Usar nuestro resolver
+                        .jwt(jwt -> jwt
+                                .jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter())
+                        )
+                )
+
                 // Configurar autorización de endpoints
                 .authorizeHttpRequests(auth -> auth
                         // Endpoints públicos (no requieren autenticación)
                         .requestMatchers("/api/clientes/register").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/clientes").permitAll() // GET All - SOLO PARA TESTING
-                        .requestMatchers("/api/clientes/**").permitAll() // GET por ID - SOLO PARA TESTING
+                        .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/validate").authenticated()
+                        .requestMatchers("/api/auth/me").authenticated()
+                        .requestMatchers("/api/auth0/**").authenticated()
+                        .requestMatchers("/api/clientes").permitAll() // SOLO PARA TESTING
+                        .requestMatchers("/api/clientes/**").permitAll() // SOLO PARA TESTING
                         .requestMatchers("/api/categorias/**").permitAll()
                         .requestMatchers("/api/articulos-insumo/**").permitAll()
                         .requestMatchers("/api/unidades-medida/**").permitAll()
                         .requestMatchers("/api/articulos-manufacturados/**").permitAll()
+
+                        // Endpoints de MercadoPago
+                        .requestMatchers("/payment/**").permitAll()
+                        .requestMatchers("/webhooks/mercadopago").permitAll()
 
                         // Permitir OPTIONS requests (preflight)
                         .requestMatchers("OPTIONS", "/**").permitAll()
