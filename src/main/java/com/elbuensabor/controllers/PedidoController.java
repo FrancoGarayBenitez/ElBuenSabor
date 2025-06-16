@@ -1,8 +1,11 @@
 package com.elbuensabor.controllers;
 
 import com.elbuensabor.dto.request.PedidoRequestDTO;
+import com.elbuensabor.dto.response.HorarioStatusResponseDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
+import com.elbuensabor.services.IHorarioService;
 import com.elbuensabor.services.IPedidoService;
+import com.elbuensabor.services.impl.HorarioServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -10,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pedidos")
@@ -17,15 +21,30 @@ import java.util.List;
 public class PedidoController {
 
     private final IPedidoService pedidoService;
+    private final IHorarioService horarioService;
 
     @Autowired
-    public PedidoController(IPedidoService pedidoService) {
+    public PedidoController(IPedidoService pedidoService, IHorarioService horarioService) { // 3. USA LA INTERFAZ
         this.pedidoService = pedidoService;
+        this.horarioService = horarioService;
     }
 
     // ==================== CREAR PEDIDO ====================
     @PostMapping
-    public ResponseEntity<PedidoResponseDTO> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+    public ResponseEntity<?> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+
+        // El controlador ahora recibe un objeto de estado completo
+        HorarioStatusResponseDTO estadoHorario = horarioService.getEstadoHorario();
+
+        if (!estadoHorario.isAbierto()) {
+            // Usamos el mensaje que viene del DTO
+            Map<String, String> errorResponse = Map.of(
+                    "error", "Fuera de horario de atención",
+                    "message", estadoHorario.getMensaje()
+            );
+            return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+        }
+
         PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
         return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
     }
