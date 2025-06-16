@@ -5,13 +5,15 @@ import com.elbuensabor.entities.Cliente;
 import com.elbuensabor.entities.Rol;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.Map;
+
 public interface IAuth0Service {
 
     /**
      * Procesa un usuario autenticado con Auth0 y retorna la respuesta de login
      */
-    LoginResponseDTO processAuth0User(Jwt jwt);
 
+    LoginResponseDTO processAuth0User(Jwt jwt, Map<String, Object> userData);
     /**
      * Busca o crea un cliente basado en datos de Auth0
      */

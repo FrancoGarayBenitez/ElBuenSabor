@@ -15,7 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth0")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"})
+
 public class Auth0Controller {
 
     private static final Logger logger = LoggerFactory.getLogger(Auth0Controller.class);
@@ -27,7 +27,8 @@ public class Auth0Controller {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> handleAuth0Login(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<?> handleAuth0Login(@AuthenticationPrincipal Jwt jwt,
+                                              @RequestBody(required = false) Map<String, Object> userData) {
         try {
             if (jwt == null) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -36,9 +37,17 @@ public class Auth0Controller {
                 ));
             }
 
+            logger.info("=== DATOS RECIBIDOS DEL FRONTEND ===");
+            if (userData != null) {
+                logger.info("User data from frontend: {}", userData);
+            } else {
+                logger.info("No user data received from frontend");
+            }
+
             // Solo procesar si es un token de usuario (no machine-to-machine)
             if (isUserToken(jwt)) {
-                LoginResponseDTO response = auth0Service.processAuth0User(jwt);
+                // Pasar los datos del frontend al servicio
+                LoginResponseDTO response = auth0Service.processAuth0User(jwt, userData);
 
                 Map<String, Object> responseBody = new HashMap<>();
                 responseBody.put("success", true);
@@ -61,7 +70,6 @@ public class Auth0Controller {
             ));
         }
     }
-
     @GetMapping("/profile")
     public ResponseEntity<?> getAuth0Profile(@AuthenticationPrincipal Jwt jwt) {
         try {

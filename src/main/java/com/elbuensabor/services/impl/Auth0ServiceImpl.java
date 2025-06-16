@@ -7,6 +7,8 @@ import com.elbuensabor.entities.Usuario;
 import com.elbuensabor.repository.IClienteRepository;
 import com.elbuensabor.services.IAuth0Service;
 import com.elbuensabor.services.mapper.ClienteMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -15,10 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class Auth0ServiceImpl implements IAuth0Service {
+
+    private static final Logger logger = LoggerFactory.getLogger(Auth0ServiceImpl.class);
 
     @Autowired
     private IClienteRepository clienteRepository;
@@ -31,23 +36,64 @@ public class Auth0ServiceImpl implements IAuth0Service {
 
     @Override
     @Transactional
-    public LoginResponseDTO processAuth0User(Jwt jwt) {
-        String email = jwt.getClaimAsString("email");
-        String auth0Id = jwt.getSubject(); // 'sub' claim contiene el Auth0 ID
-        String name = jwt.getClaimAsString("given_name");
-        String lastName = jwt.getClaimAsString("family_name");
-        String fullName = jwt.getClaimAsString("name");
+    public LoginResponseDTO processAuth0User(Jwt jwt, Map<String, Object> userData) {
+        logger.info("=== AUTH0 JWT CLAIMS DEBUG ===");
+        logger.info("All claims: {}", jwt.getClaims());
 
-        // Si no hay given_name/family_name, intentar parsear el nombre completo
-        if (name == null && fullName != null) {
-            String[] nameParts = fullName.split(" ", 2);
-            name = nameParts[0];
-            lastName = nameParts.length > 1 ? nameParts[1] : "";
+        String auth0Id = jwt.getSubject();
+
+        // 🆕 USAR DATOS DEL FRONTEND SI ESTÁN DISPONIBLES
+        String email = null;
+        String name = null;
+        String lastName = null;
+
+        if (userData != null) {
+            logger.info("=== USANDO DATOS DEL FRONTEND ===");
+            email = (String) userData.get("email");
+            name = (String) userData.get("given_name");
+            lastName = (String) userData.get("family_name");
+            String fullName = (String) userData.get("name");
+
+            logger.info("Frontend data - email: {}, given_name: {}, family_name: {}, name: {}",
+                    email, name, lastName, fullName);
+
+            // Si no hay given_name/family_name, parsear nombre completo
+            if ((name == null || name.isEmpty()) && fullName != null) {
+                String[] nameParts = fullName.split(" ", 2);
+                name = nameParts[0];
+                lastName = nameParts.length > 1 ? nameParts[1] : "";
+            }
+        } else {
+            logger.info("=== USANDO DATOS DEL JWT (FALLBACK) ===");
+            email = jwt.getClaimAsString("email");
+            name = jwt.getClaimAsString("given_name");
+            lastName = jwt.getClaimAsString("family_name");
+            String fullName = jwt.getClaimAsString("name");
+
+            if ((name == null || name.isEmpty()) && fullName != null) {
+                String[] nameParts = fullName.split(" ", 2);
+                name = nameParts[0];
+                lastName = nameParts.length > 1 ? nameParts[1] : "";
+            }
         }
 
-        // Valores por defecto si no se encuentran
-        name = name != null ? name : "Usuario";
-        lastName = lastName != null ? lastName : "Auth0";
+        logger.info("Final extracted values:");
+        logger.info("- email: {}", email);
+        logger.info("- name: {}", name);
+        logger.info("- lastName: {}", lastName);
+
+        // Validar email
+        if (email == null || email.trim().isEmpty()) {
+            if (auth0Id.contains("@clients")) {
+                throw new IllegalArgumentException("Este tipo de token no es válido para login de usuarios. Use un token de usuario real.");
+            }
+            email = "user-" + auth0Id.replaceAll("[^a-zA-Z0-9]", "") + "@auth0.temp";
+            logger.warn("Email no disponible, usando email temporal: {}", email);
+        }
+
+        // Valores por defecto
+        name = name != null && !name.trim().isEmpty() ? name : "Usuario";
+        lastName = lastName != null && !lastName.trim().isEmpty() ? lastName : "Auth0";
 
         // Extraer roles
         Rol userRole = extractRoleFromJwt(jwt);
@@ -56,7 +102,7 @@ public class Auth0ServiceImpl implements IAuth0Service {
         Cliente cliente = findOrCreateClienteFromAuth0(auth0Id, email, name, lastName, userRole);
 
         return new LoginResponseDTO(
-                jwt.getTokenValue(), // El token de Auth0
+                jwt.getTokenValue(),
                 cliente.getUsuario().getEmail(),
                 cliente.getUsuario().getRol().name(),
                 cliente.getUsuario().getIdUsuario(),
@@ -64,29 +110,97 @@ public class Auth0ServiceImpl implements IAuth0Service {
                 cliente.getApellido()
         );
     }
-
     @Override
     @Transactional
     public Cliente findOrCreateClienteFromAuth0(String auth0Id, String email, String nombre, String apellido, Rol rol) {
+        logger.info("=== BÚSQUEDA DE USUARIO ===");
+        logger.info("Buscando usuario con auth0Id: {}", auth0Id);
+        logger.info("Email: {}", email);
+
         // Primero buscar por auth0Id
-        Optional<Cliente> existingByAuth0Id = clienteRepository.findByUsuarioAuth0Id(auth0Id);
-        if (existingByAuth0Id.isPresent()) {
-            return existingByAuth0Id.get();
+        try {
+            Optional<Cliente> existingByAuth0Id = clienteRepository.findByUsuarioAuth0Id(auth0Id);
+            if (existingByAuth0Id.isPresent()) {
+                logger.info("✅ Usuario encontrado por auth0Id");
+                Cliente cliente = existingByAuth0Id.get();
+
+                // Actualizar datos si están vacíos o han cambiado
+                updateClienteDataIfNeeded(cliente, email, nombre, apellido);
+
+                return clienteRepository.save(cliente);
+            }
+            logger.info("❌ Usuario NO encontrado por auth0Id");
+        } catch (Exception e) {
+            logger.error("Error buscando por auth0Id: ", e);
         }
 
-        // Luego buscar por email
-        Optional<Cliente> existingByEmail = clienteRepository.findByUsuarioEmail(email);
-        if (existingByEmail.isPresent()) {
-            // Usuario existe pero no tiene auth0Id, vincular las cuentas
-            Cliente cliente = existingByEmail.get();
-            cliente.getUsuario().setAuth0Id(auth0Id);
-            return clienteRepository.save(cliente);
+        // Luego buscar por email (solo si el email no es temporal)
+        if (email != null && !email.contains("@auth0.temp")) {
+            try {
+                Optional<Cliente> existingByEmail = clienteRepository.findByUsuarioEmail(email);
+                if (existingByEmail.isPresent()) {
+                    logger.info("✅ Usuario encontrado por email, vinculando auth0Id");
+                    Cliente cliente = existingByEmail.get();
+                    cliente.getUsuario().setAuth0Id(auth0Id);
+
+                    // Actualizar datos también
+                    updateClienteDataIfNeeded(cliente, email, nombre, apellido);
+
+                    return clienteRepository.save(cliente);
+                }
+                logger.info("❌ Usuario NO encontrado por email");
+            } catch (Exception e) {
+                logger.error("Error buscando por email: ", e);
+            }
         }
 
-        // Crear nuevo cliente
+        // Si llegamos aquí, crear nuevo cliente
+        logger.info("🆕 Creando nuevo cliente");
         return createNewClienteFromAuth0(auth0Id, email, nombre, apellido, rol);
     }
 
+    /**
+     * Actualiza los datos del cliente si están vacíos o han cambiado
+     */
+    private void updateClienteDataIfNeeded(Cliente cliente, String email, String nombre, String apellido) {
+        boolean updated = false;
+
+        // Actualizar email si está vacío o es diferente
+        if (email != null && !email.contains("@auth0.temp")) {
+            if (cliente.getUsuario().getEmail() == null || cliente.getUsuario().getEmail().isEmpty()
+                    || !cliente.getUsuario().getEmail().equals(email)) {
+                logger.info("Actualizando email: {} -> {}", cliente.getUsuario().getEmail(), email);
+                cliente.getUsuario().setEmail(email);
+                updated = true;
+            }
+        }
+
+        // Actualizar nombre si está vacío o es diferente
+        if (nombre != null && !nombre.isEmpty()) {
+            if (cliente.getNombre() == null || cliente.getNombre().isEmpty()
+                    || cliente.getNombre().equals("Usuario")) {
+                logger.info("Actualizando nombre: {} -> {}", cliente.getNombre(), nombre);
+                cliente.setNombre(nombre);
+                updated = true;
+            }
+        }
+
+        // Actualizar apellido si está vacío o es diferente
+        if (apellido != null && !apellido.isEmpty()) {
+            if (cliente.getApellido() == null || cliente.getApellido().isEmpty()
+                    || cliente.getApellido().equals("Auth0")) {
+                logger.info("Actualizando apellido: {} -> {}", cliente.getApellido(), apellido);
+                cliente.setApellido(apellido);
+                updated = true;
+            }
+        }
+
+        if (updated) {
+            logger.info("✅ Datos del cliente actualizados");
+        } else {
+            logger.info("ℹ️ No se requieren actualizaciones");
+        }
+    }
     @Override
     public boolean isAuth0Token(String token) {
         // Los tokens de Auth0 son mucho más largos y tienen una estructura diferente
