@@ -13,5 +13,8 @@ public interface IClienteRepository extends JpaRepository<Cliente, Long> {
     boolean existsByUsuarioEmail(@Param("email") String email);
 
     Optional<Cliente> findByUsuarioEmail(String email);
+
+    Optional<Cliente> findByUsuarioIdUsuario(Long idUsuario);
+
 }
 

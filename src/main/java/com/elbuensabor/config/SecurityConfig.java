@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/articulos-insumo/**").permitAll()
                         .requestMatchers("/api/unidades-medida/**").permitAll()
                         .requestMatchers("/api/articulos-manufacturados/**").permitAll()
+                        .requestMatchers("/api/usuarios/**").permitAll()
 
                         // Permitir OPTIONS requests (preflight)
                         .requestMatchers("OPTIONS", "/**").permitAll()
