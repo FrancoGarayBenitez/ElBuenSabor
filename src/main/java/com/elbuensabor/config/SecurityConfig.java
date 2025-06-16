@@ -14,6 +14,11 @@ import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+<<<<<<< HEAD
+=======
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
+>>>>>>> ramaLucho
 
 @Configuration
 @EnableWebSecurity
@@ -25,6 +30,12 @@ public class SecurityConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
     private String issuer;
 
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private HybridBearerTokenResolver hybridBearerTokenResolver;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -35,23 +46,56 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+<<<<<<< HEAD
+=======
+
+                // Agregar nuestro filtro JWT personalizado PRIMERO
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // Configurar OAuth2 Resource Server para Auth0 con nuestro resolver personalizado
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(hybridBearerTokenResolver) // Usar nuestro resolver
+                        .jwt(jwt -> jwt
+                                .jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter())
+                        )
+                )
+
+                // Configurar autorización de endpoints
+>>>>>>> ramaLucho
                 .authorizeHttpRequests(auth -> auth
                         // ========== ENDPOINTS PÚBLICOS ==========
 
                         // Sistema Clásico - Completamente público
                         .requestMatchers("/api/clientes/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
+<<<<<<< HEAD
                         .requestMatchers("/api/auth/validate-classic").permitAll()
 
                         // Otros endpoints públicos
+=======
+                        .requestMatchers("/api/auth/validate").authenticated()
+                        .requestMatchers("/api/auth/me").authenticated()
+                        .requestMatchers("/api/auth0/**").authenticated()
+                        .requestMatchers("/api/clientes").permitAll() // SOLO PARA TESTING
+                        .requestMatchers("/api/clientes/**").permitAll() // SOLO PARA TESTING
+>>>>>>> ramaLucho
                         .requestMatchers("/api/categorias/**").permitAll()
                         .requestMatchers("/api/articulos-insumo/**").permitAll()
                         .requestMatchers("/api/unidades-medida/**").permitAll()
                         .requestMatchers("/api/articulos-manufacturados/**").permitAll()
 
+<<<<<<< HEAD
                         // CRUD de clientes - público para testing
                         .requestMatchers("/api/clientes").permitAll()
                         .requestMatchers("/api/clientes/{id}").permitAll()
+=======
+                        // Endpoints de MercadoPago
+                        .requestMatchers("/payment/**").permitAll()
+                        .requestMatchers("/webhooks/mercadopago").permitAll()
+
+                        // Permitir OPTIONS requests (preflight)
+                        .requestMatchers("OPTIONS", "/**").permitAll()
+>>>>>>> ramaLucho
 
                         // ========== ENDPOINTS QUE REQUIEREN AUTH0 ==========
 

@@ -37,13 +37,42 @@ public class PedidoServiceImpl implements IPedidoService {
     @Autowired
     private PedidoMapper pedidoMapper;
 
+    @Autowired
+    private ISucursalEmpresaRepository sucursalRepository;
+    private PedidoResponseDTO enrichPedidoResponse(Pedido pedido) {
+        PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
+
+        // Calcular stock (siempre true para pedidos ya creados)
+        response.setStockSuficiente(true);
+
+        // Calcular tiempo estimado desde los detalles
+        response.setTiempoEstimadoTotal(calcularTiempoEstimadoDesdeDetalles(pedido.getDetalles()));
+
+        return response;
+    }
+
+    private Integer calcularTiempoEstimadoDesdeDetalles(List<DetallePedido> detalles) {
+        int tiempoMaximo = 0;
+
+        for (DetallePedido detalle : detalles) {
+            if (detalle.getArticulo() instanceof ArticuloManufacturado) {
+                ArticuloManufacturado manufacturado = (ArticuloManufacturado) detalle.getArticulo();
+                if (manufacturado.getTiempoEstimadoEnMinutos() != null) {
+                    tiempoMaximo = Math.max(tiempoMaximo, manufacturado.getTiempoEstimadoEnMinutos());
+                }
+            }
+        }
+
+        return tiempoMaximo > 0 ? tiempoMaximo : null;
+    }
     @Override
     @Transactional
     public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoRequest) {
         // 1. Validar cliente
         Cliente cliente = clienteRepository.findById(pedidoRequest.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
-
+        SucursalEmpresa sucursal = sucursalRepository.findById(pedidoRequest.getIdSucursal())
+                .orElseThrow(() -> new ResourceNotFoundException("Sucursal no encontrada"));
         // 2. Validar stock disponible
         if (!validarStockDisponible(pedidoRequest)) {
             throw new IllegalArgumentException("Stock insuficiente para algunos productos");
@@ -52,6 +81,7 @@ public class PedidoServiceImpl implements IPedidoService {
         // 3. Crear entidad Pedido
         Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
+        pedido.setSucursal(sucursal);
         pedido.setFecha(LocalDateTime.now());
         pedido.setEstado(Estado.PENDIENTE);
         pedido.setTipoEnvio(TipoEnvio.valueOf(pedidoRequest.getTipoEnvio()));
@@ -103,8 +133,15 @@ public class PedidoServiceImpl implements IPedidoService {
 
         // 10. Guardar con detalles
         Pedido pedidoFinal = pedidoRepository.save(pedidoGuardado);
+        // 11. Mapear a DTO
+        PedidoResponseDTO response = pedidoMapper.toDTO(pedidoFinal);
 
-        return pedidoMapper.toDTO(pedidoFinal);
+        // ✅ 12. Calcular campos faltantes
+        response.setStockSuficiente(validarStockDisponible(pedidoRequest));
+        response.setTiempoEstimadoTotal(calcularTiempoEstimado(pedidoRequest));
+
+        return response;
+
     }
 
     @Override
@@ -112,14 +149,17 @@ public class PedidoServiceImpl implements IPedidoService {
     public PedidoResponseDTO findById(Long id) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
-        return pedidoMapper.toDTO(pedido);
+        PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
+
+        // ✅ Calcular campos adicionales
+        return enrichPedidoResponse(pedido);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findAll() {
         return pedidoRepository.findAll().stream()
-                .map(pedidoMapper::toDTO)
+                .map(this::enrichPedidoResponse)
                 .collect(Collectors.toList());
     }
 
@@ -127,7 +167,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findByCliente(Long idCliente) {
         return pedidoRepository.findByClienteIdClienteOrderByFechaDesc(idCliente).stream()
-                .map(pedidoMapper::toDTO)
+                .map(this::enrichPedidoResponse)
                 .collect(Collectors.toList());
     }
 
