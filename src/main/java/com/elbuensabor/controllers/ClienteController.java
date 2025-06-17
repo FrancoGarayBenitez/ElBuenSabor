@@ -2,18 +2,20 @@ package com.elbuensabor.controllers;
 
 import com.elbuensabor.dto.request.ClienteRegisterDTO;
 import com.elbuensabor.dto.response.ClienteResponseDTO;
+import com.elbuensabor.entities.Cliente;
 import com.elbuensabor.services.IClienteService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/clientes")
-
 public class ClienteController {
 
     private final IClienteService clienteService;
@@ -56,4 +58,6 @@ public class ClienteController {
         clienteService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+
 }

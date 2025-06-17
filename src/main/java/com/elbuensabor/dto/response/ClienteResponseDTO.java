@@ -1,6 +1,6 @@
 package com.elbuensabor.dto.response;
 
-
+import com.elbuensabor.dto.request.DomicilioDTO;
 import com.elbuensabor.dto.request.ImagenDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
