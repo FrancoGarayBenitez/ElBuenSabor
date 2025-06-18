@@ -101,6 +101,21 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
         ArticuloManufacturado savedManufacturado = repository.save(manufacturado);
         return mapearManufacturadoCompleto(savedManufacturado);
     }
+    @Override
+    public void bajaLogica(Long id) {
+        ArticuloManufacturado producto = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontró el producto con id " + id));
+        producto.setEliminado(true);
+        repository.save(producto);
+    }
+
+    @Override
+    public void altaLogica(Long id) {
+        ArticuloManufacturado producto = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontró el producto con id " + id));
+        producto.setEliminado(false);
+        repository.save(producto);
+    }
 
     @Override
     @Transactional

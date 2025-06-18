@@ -16,6 +16,7 @@ public class ArticuloInsumoResponseDTO {
     private Long idArticulo;
     private String denominacion;
     private Double precioVenta;
+    private Boolean eliminado;
 
     // Información de Unidad de Medida
     private Long idUnidadMedida;

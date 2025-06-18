@@ -44,4 +44,9 @@ public interface IArticuloManufacturadoService extends IGenericService<ArticuloM
     boolean existsByDenominacion(String denominacion);
     boolean tieneIngredientes(Long idProducto);
     boolean seUsaEnPedidos(Long idProducto);
+
+    //Bajas y Altas logicas
+    void bajaLogica(Long id);
+    void altaLogica(Long id);
+
 }
