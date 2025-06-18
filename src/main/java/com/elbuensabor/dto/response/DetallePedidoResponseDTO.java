@@ -16,4 +16,7 @@ public class DetallePedidoResponseDTO {
     private Double subtotal;
     private String unidadMedida;
     private Integer tiempoPreparacion; // minutos
+
+    // ✅ NUEVO: Observaciones del producto
+    private String observaciones;
 }

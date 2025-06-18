@@ -1,9 +1,11 @@
 package com.elbuensabor.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -11,7 +13,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "factura")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Factura {
@@ -26,8 +29,6 @@ public class Factura {
     @Column(name = "nro_comprobante", nullable = false, unique = true)
     private String nroComprobante;
 
-    // REMOVIDO: FormaPago - ahora está en cada Pago individual
-
     @Column(nullable = false)
     private Double subTotal;
 
@@ -40,14 +41,15 @@ public class Factura {
     @Column(name="total_venta", nullable = false)
     private Double totalVenta;
 
-    // REMOVIDO: DatosMercadoPago - ahora está en cada Pago individual
-
+    // ✅ SOLUCIÓN DEFINITIVA: Ignorar en JSON para evitar recursión
     @OneToOne
     @JoinColumn(name = "id_pedido")
+    @JsonIgnore  // ✅ Completamente ignorado en serialización
     private Pedido pedido;
 
-    // Nueva relación con pagos
+    // ✅ SOLUCIÓN DEFINITIVA: Ignorar pagos en JSON
     @OneToMany(mappedBy = "factura", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore  // ✅ Los pagos se mapearán manualmente en el DTO
     private List<Pago> pagos = new ArrayList<>();
 
     // Métodos de conveniencia
@@ -61,21 +63,32 @@ public class Factura {
         pago.setFactura(null);
     }
 
-    // Método útil para obtener el total pagado
-    public Double getTotalPagado() {
-        return pagos.stream()
-                .filter(pago -> pago.getEstado() == EstadoPago.APROBADO)
-                .mapToDouble(Pago::getMonto)
-                .sum();
+    // ✅ toString() personalizado SIN referencias circulares
+    @Override
+    public String toString() {
+        return "Factura{" +
+                "idFactura=" + idFactura +
+                ", fechaFactura=" + fechaFactura +
+                ", nroComprobante='" + nroComprobante + '\'' +
+                ", subTotal=" + subTotal +
+                ", descuento=" + descuento +
+                ", gastosEnvio=" + gastosEnvio +
+                ", totalVenta=" + totalVenta +
+                ", pedidoId=" + (pedido != null ? pedido.getIdPedido() : null) +
+                '}';
     }
 
-    // Método para verificar si está completamente pagada
-    public boolean isCompletamentePagada() {
-        return getTotalPagado() >= totalVenta;
+    // ✅ equals() y hashCode() seguros
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Factura)) return false;
+        Factura factura = (Factura) o;
+        return idFactura != null && idFactura.equals(factura.idFactura);
     }
 
-    // Método para obtener el saldo pendiente
-    public Double getSaldoPendiente() {
-        return totalVenta - getTotalPagado();
+    @Override
+    public int hashCode() {
+        return idFactura != null ? idFactura.hashCode() : 0;
     }
 }

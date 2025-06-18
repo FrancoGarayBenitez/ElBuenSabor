@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.elbuensabor.dto.response.FacturaResponseDTO;
 
 import java.util.List;
 
@@ -116,5 +117,12 @@ public class PedidoController {
     public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
         PedidoResponseDTO pedido = pedidoService.findById(id);
         return ResponseEntity.ok(pedido);
+    }
+
+    // Agregar método en la sección de endpoints específicos (ANTES de /{id})
+    @GetMapping("/{id}/factura")
+    public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long id) {
+        FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
+        return ResponseEntity.ok(factura);
     }
 }

@@ -2,6 +2,7 @@ package com.elbuensabor.services;
 
 import com.elbuensabor.dto.request.PedidoRequestDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
+import com.elbuensabor.dto.response.FacturaResponseDTO;
 import java.util.List;
 
 public interface IPedidoService {
@@ -28,4 +29,7 @@ public interface IPedidoService {
     List<PedidoResponseDTO> findPedidosPendientes();
     List<PedidoResponseDTO> findPedidosEnPreparacion();
     List<PedidoResponseDTO> findPedidosListosParaEntrega();
+
+    // Nuevo método para obtener factura del pedido
+    FacturaResponseDTO getFacturaPedido(Long pedidoId);
 }

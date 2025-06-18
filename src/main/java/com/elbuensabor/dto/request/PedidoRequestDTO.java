@@ -20,11 +20,15 @@ public class PedidoRequestDTO {
     private String tipoEnvio; // "DELIVERY" o "TAKE_AWAY"
 
     private Long idDomicilio; // Solo si es DELIVERY
+
     @NotNull(message = "La sucursal es obligatoria")
     private Long idSucursal;
+
+    // ✅ NUEVO: Observaciones generales del pedido
+    @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
+    private String observaciones;
+
     @Valid
     @NotEmpty(message = "El pedido debe tener al menos un producto")
     private List<DetallePedidoRequestDTO> detalles;
-
-    private String observaciones;
 }
