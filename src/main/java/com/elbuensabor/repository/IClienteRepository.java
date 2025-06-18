@@ -16,7 +16,5 @@ public interface IClienteRepository extends JpaRepository<Cliente, Long> {
     Optional<Cliente> findByUsuarioAuth0Id(@Param("auth0Id") String auth0Id);
 
     Optional<Cliente> findByUsuarioEmail(String email);
-
-    Optional<Cliente> findByUsuarioAuth0Id(String auth0Id);
 }
 

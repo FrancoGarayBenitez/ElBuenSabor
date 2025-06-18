@@ -13,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/pedidos")
-
 public class PedidoController {
 
     private final IPedidoService pedidoService;
@@ -23,26 +22,45 @@ public class PedidoController {
         this.pedidoService = pedidoService;
     }
 
-    // ==================== CREAR PEDIDO ====================
-    @PostMapping
-    public ResponseEntity<PedidoResponseDTO> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
-        PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
-        return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
+    // ==================== VALIDACIONES PREVIAS - PRIMERO ====================
+    @PostMapping("/validar")
+    public ResponseEntity<Boolean> validarPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+        Boolean esValido = pedidoService.validarStockDisponible(pedidoRequest);
+        return ResponseEntity.ok(esValido);
     }
 
-    // ==================== OBTENER PEDIDOS ====================
-    @GetMapping
-    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findAll();
+    @PostMapping("/calculos/total")
+    public ResponseEntity<Double> calcularTotal(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+        Double total = pedidoService.calcularTotal(pedidoRequest);
+        return ResponseEntity.ok(total);
+    }
+
+    @PostMapping("/calculos/tiempo")
+    public ResponseEntity<Integer> calcularTiempoEstimado(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+        Integer tiempoMinutos = pedidoService.calcularTiempoEstimado(pedidoRequest);
+        return ResponseEntity.ok(tiempoMinutos);
+    }
+
+    // ==================== FILTROS PARA DIFERENTES ROLES ====================
+    @GetMapping("/pendientes")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosPendientes() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
         return ResponseEntity.ok(pedidos);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
-        PedidoResponseDTO pedido = pedidoService.findById(id);
-        return ResponseEntity.ok(pedido);
+    @GetMapping("/en-preparacion")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosEnPreparacion() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosEnPreparacion();
+        return ResponseEntity.ok(pedidos);
     }
 
+    @GetMapping("/listos-para-entrega")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaEntrega() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaEntrega();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    // ==================== ENDPOINTS CON PATH VARIABLES ESPECÍFICOS ====================
     @GetMapping("/cliente/{idCliente}")
     public ResponseEntity<List<PedidoResponseDTO>> getPedidosByCliente(@PathVariable Long idCliente) {
         List<PedidoResponseDTO> pedidos = pedidoService.findByCliente(idCliente);
@@ -80,41 +98,23 @@ public class PedidoController {
         return ResponseEntity.ok(pedido);
     }
 
-    // ==================== VALIDACIONES PREVIAS ====================
-    @PostMapping("/validar")
-    public ResponseEntity<Boolean> validarPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
-        Boolean esValido = pedidoService.validarStockDisponible(pedidoRequest);
-        return ResponseEntity.ok(esValido);
+    // ==================== CREAR PEDIDO ====================
+    @PostMapping
+    public ResponseEntity<PedidoResponseDTO> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+        PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
+        return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
     }
 
-    @PostMapping("/calcular-total")
-    public ResponseEntity<Double> calcularTotal(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
-        Double total = pedidoService.calcularTotal(pedidoRequest);
-        return ResponseEntity.ok(total);
-    }
-
-    @PostMapping("/tiempo-estimado")
-    public ResponseEntity<Integer> calcularTiempoEstimado(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
-        Integer tiempoMinutos = pedidoService.calcularTiempoEstimado(pedidoRequest);
-        return ResponseEntity.ok(tiempoMinutos);
-    }
-
-    // ==================== FILTROS PARA DIFERENTES ROLES ====================
-    @GetMapping("/pendientes")
-    public ResponseEntity<List<PedidoResponseDTO>> getPedidosPendientes() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
+    // ==================== OBTENER PEDIDOS - AL FINAL ====================
+    @GetMapping
+    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findAll();
         return ResponseEntity.ok(pedidos);
     }
 
-    @GetMapping("/en-preparacion")
-    public ResponseEntity<List<PedidoResponseDTO>> getPedidosEnPreparacion() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosEnPreparacion();
-        return ResponseEntity.ok(pedidos);
-    }
-
-    @GetMapping("/listos-para-entrega")
-    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaEntrega() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaEntrega();
-        return ResponseEntity.ok(pedidos);
+    @GetMapping("/{id}")
+    public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
+        PedidoResponseDTO pedido = pedidoService.findById(id);
+        return ResponseEntity.ok(pedido);
     }
 }
