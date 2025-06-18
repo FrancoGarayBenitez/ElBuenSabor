@@ -7,12 +7,13 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
-@Mapper(componentModel = "spring", uses = {DomicilioMapper.class})
+@Mapper(componentModel = "spring", uses = {DomicilioMapper.class})  // ← VOLVER A AGREGAR uses
 public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
 
     // ENTITY → RESPONSE DTO
     @Override
     @Mapping(source = "usuario.email", target = "email")
+    @Mapping(source = "domicilios", target = "domicilios", qualifiedByName = "toResponseDTO")  // ← AHORA FUNCIONARÁ
     ClienteResponseDTO toDTO(Cliente entity);
 
     // RESPONSE DTO → ENTITY (para el método genérico)
@@ -21,6 +22,7 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
     @Mapping(target = "usuario", ignore = true)
     @Mapping(target = "pedidos", ignore = true)
     @Mapping(target = "imagen", ignore = true)
+    @Mapping(target = "domicilios", ignore = true)
     Cliente toEntity(ClienteResponseDTO dto);
 
     // REGISTER DTO → ENTITY
@@ -37,5 +39,6 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
     @Mapping(target = "usuario", ignore = true)
     @Mapping(target = "pedidos", ignore = true)
     @Mapping(target = "imagen", ignore = true)
+    @Mapping(target = "domicilios", ignore = true)
     void updateEntityFromDTO(ClienteResponseDTO dto, @MappingTarget Cliente entity);
 }

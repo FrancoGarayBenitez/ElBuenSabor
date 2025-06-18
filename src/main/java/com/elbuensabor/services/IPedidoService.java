@@ -28,4 +28,6 @@ public interface IPedidoService {
     List<PedidoResponseDTO> findPedidosPendientes();
     List<PedidoResponseDTO> findPedidosEnPreparacion();
     List<PedidoResponseDTO> findPedidosListosParaEntrega();
+    List<PedidoResponseDTO> findPedidosListos();
+    List<PedidoResponseDTO> findPedidosListosParaRetiro();
 }

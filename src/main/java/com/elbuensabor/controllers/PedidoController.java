@@ -13,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/pedidos")
-
 public class PedidoController {
 
     private final IPedidoService pedidoService;
@@ -100,6 +99,8 @@ public class PedidoController {
     }
 
     // ==================== FILTROS PARA DIFERENTES ROLES ====================
+
+    // Para administradores/gerentes - ver todos los pedidos por estado
     @GetMapping("/pendientes")
     public ResponseEntity<List<PedidoResponseDTO>> getPedidosPendientes() {
         List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
@@ -112,9 +113,56 @@ public class PedidoController {
         return ResponseEntity.ok(pedidos);
     }
 
+    @GetMapping("/listos")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListos() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListos();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    // Para delivery - pedidos listos para entregar
     @GetMapping("/listos-para-entrega")
     public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaEntrega() {
         List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaEntrega();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    // Para mostrador/caja - pedidos listos para retirar
+    @GetMapping("/listos-para-retiro")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaRetiro() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaRetiro();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    // ==================== ENDPOINTS ESPECÍFICOS PARA COCINA ====================
+
+    // Dashboard de cocina - pedidos que necesitan atención
+    @GetMapping("/cocina/pendientes-confirmacion")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosPendientesConfirmacion() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    @GetMapping("/cocina/en-proceso")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosEnProceso() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosEnPreparacion();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    // ==================== ENDPOINTS PARA DELIVERY ====================
+
+    // Solo pedidos de delivery listos para entregar
+    @GetMapping("/delivery/pendientes")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosDeliveryPendientes() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaEntrega();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    // ==================== ENDPOINTS PARA MOSTRADOR ====================
+
+    // Solo pedidos de take away listos para retirar
+    @GetMapping("/mostrador/listos")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosMostradorListos() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaRetiro();
         return ResponseEntity.ok(pedidos);
     }
 }

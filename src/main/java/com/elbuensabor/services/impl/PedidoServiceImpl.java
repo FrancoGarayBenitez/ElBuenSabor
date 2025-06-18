@@ -39,6 +39,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
     @Autowired
     private ISucursalEmpresaRepository sucursalRepository;
+
     private PedidoResponseDTO enrichPedidoResponse(Pedido pedido) {
         PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
 
@@ -65,14 +66,18 @@ public class PedidoServiceImpl implements IPedidoService {
 
         return tiempoMaximo > 0 ? tiempoMaximo : null;
     }
+
     @Override
     @Transactional
     public PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoRequest) {
         // 1. Validar cliente
+        System.out.println("🚀 RECIBIENDO PEDIDO REQUEST:");
+        System.out.println("📝 Observaciones recibidas: '" + pedidoRequest.getObservaciones() + "'");
         Cliente cliente = clienteRepository.findById(pedidoRequest.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
         SucursalEmpresa sucursal = sucursalRepository.findById(pedidoRequest.getIdSucursal())
                 .orElseThrow(() -> new ResourceNotFoundException("Sucursal no encontrada"));
+
         // 2. Validar stock disponible
         if (!validarStockDisponible(pedidoRequest)) {
             throw new IllegalArgumentException("Stock insuficiente para algunos productos");
@@ -85,8 +90,11 @@ public class PedidoServiceImpl implements IPedidoService {
         pedido.setFecha(LocalDateTime.now());
         pedido.setEstado(Estado.PENDIENTE);
         pedido.setTipoEnvio(TipoEnvio.valueOf(pedidoRequest.getTipoEnvio()));
+        pedido.setObservaciones(pedidoRequest.getObservaciones());
+        System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
 
         // 4. Asignar domicilio si es delivery
+
         if (pedidoRequest.getTipoEnvio().equals("DELIVERY")) {
             if (pedidoRequest.getIdDomicilio() == null) {
                 throw new IllegalArgumentException("Domicilio requerido para delivery");
@@ -109,7 +117,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
         // 7. Guardar pedido
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
-
+        System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
         // 8. Crear detalles del pedido
         List<DetallePedido> detalles = pedidoRequest.getDetalles().stream()
                 .map(detalleRequest -> {
@@ -128,20 +136,21 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedidoGuardado.setDetalles(detalles);
 
-        // 9. Actualizar stock de ingredientes
-        actualizarStockIngredientes(pedidoRequest);
+        // 9. Actualizar stock de ingredientes - NO ACTUALIZAR HASTA CONFIRMAR
+        // actualizarStockIngredientes(pedidoRequest);
 
         // 10. Guardar con detalles
         Pedido pedidoFinal = pedidoRepository.save(pedidoGuardado);
+
         // 11. Mapear a DTO
         PedidoResponseDTO response = pedidoMapper.toDTO(pedidoFinal);
+        System.out.println("📤 Observaciones en response: '" + response.getObservaciones() + "'");
 
-        // ✅ 12. Calcular campos faltantes
+        // 12. Calcular campos faltantes
         response.setStockSuficiente(validarStockDisponible(pedidoRequest));
         response.setTiempoEstimadoTotal(calcularTiempoEstimado(pedidoRequest));
 
         return response;
-
     }
 
     @Override
@@ -149,9 +158,6 @@ public class PedidoServiceImpl implements IPedidoService {
     public PedidoResponseDTO findById(Long id) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
-        PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
-
-        // ✅ Calcular campos adicionales
         return enrichPedidoResponse(pedido);
     }
 
@@ -181,10 +187,12 @@ public class PedidoServiceImpl implements IPedidoService {
             throw new IllegalStateException("Solo se pueden confirmar pedidos pendientes");
         }
 
+        // Al confirmar, cambiar a PREPARACION y actualizar stock
         pedido.setEstado(Estado.PREPARACION);
-        Pedido pedidoActualizado = pedidoRepository.save(pedido);
+        actualizarStockDesdePedido(pedido);
 
-        return pedidoMapper.toDTO(pedidoActualizado);
+        Pedido pedidoActualizado = pedidoRepository.save(pedido);
+        return enrichPedidoResponse(pedidoActualizado);
     }
 
     @Override
@@ -193,10 +201,15 @@ public class PedidoServiceImpl implements IPedidoService {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
 
-        pedido.setEstado(Estado.PREPARACION);
-        Pedido pedidoActualizado = pedidoRepository.save(pedido);
+        if (pedido.getEstado() != Estado.PENDIENTE) {
+            throw new IllegalStateException("Solo se pueden pasar a preparación pedidos pendientes");
+        }
 
-        return pedidoMapper.toDTO(pedidoActualizado);
+        pedido.setEstado(Estado.PREPARACION);
+        actualizarStockDesdePedido(pedido);
+
+        Pedido pedidoActualizado = pedidoRepository.save(pedido);
+        return enrichPedidoResponse(pedidoActualizado);
     }
 
     @Override
@@ -206,19 +219,12 @@ public class PedidoServiceImpl implements IPedidoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
 
         if (pedido.getEstado() != Estado.PREPARACION) {
-            throw new IllegalStateException("El pedido debe estar en preparación");
+            throw new IllegalStateException("El pedido debe estar en preparación para marcarlo como listo");
         }
 
-        // Si es take away, marcar como entregado directamente
-        if (pedido.getTipoEnvio() == TipoEnvio.TAKE_AWAY) {
-            pedido.setEstado(Estado.ENTREGADO);
-        } else {
-            // Si es delivery, marcar como listo para entrega
-            pedido.setEstado(Estado.ENTREGADO); // Cambiar por LISTO cuando agregues ese estado
-        }
-
+        pedido.setEstado(Estado.LISTO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-        return pedidoMapper.toDTO(pedidoActualizado);
+        return enrichPedidoResponse(pedidoActualizado);
     }
 
     @Override
@@ -227,10 +233,15 @@ public class PedidoServiceImpl implements IPedidoService {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
 
+        // Verificar que esté listo o en preparación (para take away)
+        if (pedido.getEstado() != Estado.LISTO &&
+                !(pedido.getEstado() == Estado.PREPARACION && pedido.getTipoEnvio() == TipoEnvio.TAKE_AWAY)) {
+            throw new IllegalStateException("El pedido debe estar listo para ser entregado");
+        }
+
         pedido.setEstado(Estado.ENTREGADO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-
-        return pedidoMapper.toDTO(pedidoActualizado);
+        return enrichPedidoResponse(pedidoActualizado);
     }
 
     @Override
@@ -243,15 +254,14 @@ public class PedidoServiceImpl implements IPedidoService {
             throw new IllegalStateException("No se puede cancelar un pedido entregado");
         }
 
-        // Restaurar stock si era necesario
-        if (pedido.getEstado() == Estado.PREPARACION) {
+        // Restaurar stock solo si el pedido estaba en preparación o listo
+        if (pedido.getEstado() == Estado.PREPARACION || pedido.getEstado() == Estado.LISTO) {
             restaurarStockIngredientes(pedido);
         }
 
         pedido.setEstado(Estado.CANCELADO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-
-        return pedidoMapper.toDTO(pedidoActualizado);
+        return enrichPedidoResponse(pedidoActualizado);
     }
 
     @Override
@@ -328,7 +338,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findPedidosPendientes() {
         return pedidoRepository.findByEstadoOrderByFechaAsc(Estado.PENDIENTE).stream()
-                .map(pedidoMapper::toDTO)
+                .map(this::enrichPedidoResponse)
                 .collect(Collectors.toList());
     }
 
@@ -336,15 +346,33 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findPedidosEnPreparacion() {
         return pedidoRepository.findByEstadoOrderByFechaAsc(Estado.PREPARACION).stream()
-                .map(pedidoMapper::toDTO)
+                .map(this::enrichPedidoResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PedidoResponseDTO> findPedidosListos() {
+        return pedidoRepository.findByEstadoOrderByFechaAsc(Estado.LISTO).stream()
+                .map(this::enrichPedidoResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findPedidosListosParaEntrega() {
-        return pedidoRepository.findByEstadoAndTipoEnvioOrderByFechaAsc(Estado.ENTREGADO, TipoEnvio.DELIVERY).stream()
-                .map(pedidoMapper::toDTO)
+        // Pedidos listos para delivery
+        return pedidoRepository.findByEstadoAndTipoEnvioOrderByFechaAsc(Estado.LISTO, TipoEnvio.DELIVERY).stream()
+                .map(this::enrichPedidoResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PedidoResponseDTO> findPedidosListosParaRetiro() {
+        // Pedidos listos para take away
+        return pedidoRepository.findByEstadoAndTipoEnvioOrderByFechaAsc(Estado.LISTO, TipoEnvio.TAKE_AWAY).stream()
+                .map(this::enrichPedidoResponse)
                 .collect(Collectors.toList());
     }
 
@@ -375,6 +403,27 @@ public class PedidoServiceImpl implements IPedidoService {
         for (var detalle : pedidoRequest.getDetalles()) {
             Articulo articulo = articuloRepository.findById(detalle.getIdArticulo())
                     .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+
+            if (articulo instanceof ArticuloManufacturado) {
+                ArticuloManufacturado manufacturado = (ArticuloManufacturado) articulo;
+
+                for (var ingrediente : manufacturado.getDetalles()) {
+                    ArticuloInsumo insumo = ingrediente.getArticuloInsumo();
+                    int cantidadARestar = (int) (ingrediente.getCantidad() * detalle.getCantidad());
+                    insumo.setStockActual(insumo.getStockActual() - cantidadARestar);
+                    articuloInsumoRepository.save(insumo);
+                }
+            } else if (articulo instanceof ArticuloInsumo) {
+                ArticuloInsumo insumo = (ArticuloInsumo) articulo;
+                insumo.setStockActual(insumo.getStockActual() - detalle.getCantidad());
+                articuloInsumoRepository.save(insumo);
+            }
+        }
+    }
+
+    private void actualizarStockDesdePedido(Pedido pedido) {
+        for (var detalle : pedido.getDetalles()) {
+            Articulo articulo = detalle.getArticulo();
 
             if (articulo instanceof ArticuloManufacturado) {
                 ArticuloManufacturado manufacturado = (ArticuloManufacturado) articulo;

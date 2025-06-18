@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.stream.Collectors;
+
 @Service
 public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, ClienteResponseDTO, IClienteRepository, ClienteMapper>
         implements IClienteService {
@@ -24,7 +26,7 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
     public ClienteServiceImpl(IClienteRepository repository,
                               ClienteMapper mapper,
                               PasswordEncoder passwordEncoder,
-                              DomicilioMapper domicilioMapper) { // Agregarlo al constructor
+                              DomicilioMapper domicilioMapper) {
         super(repository, mapper, Cliente.class, ClienteResponseDTO.class);
         this.passwordEncoder = passwordEncoder;
         this.domicilioMapper = domicilioMapper;
@@ -66,7 +68,48 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
         }
 
         Cliente savedCliente = repository.save(cliente);
-        return mapper.toDTO(savedCliente);
+
+        // 🚨 ARREGLO MANUAL: Mapear con domicilios correctos
+        return mapearClienteConDomicilios(savedCliente);
     }
 
+    // 🚨 OVERRIDE del método findById para arreglar los domicilios también
+    @Override
+    public ClienteResponseDTO findById(Long id) {
+        Cliente cliente = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + id));
+
+        return mapearClienteConDomicilios(cliente);
+    }
+
+    // 🚨 OVERRIDE del método findAll para arreglar los domicilios también
+    @Override
+    public java.util.List<ClienteResponseDTO> findAll() {
+        return repository.findAll().stream()
+                .map(this::mapearClienteConDomicilios)
+                .collect(Collectors.toList());
+    }
+
+    // ==================== MÉTODO AUXILIAR ====================
+    private ClienteResponseDTO mapearClienteConDomicilios(Cliente cliente) {
+        // Mapear cliente básico
+        ClienteResponseDTO response = mapper.toDTO(cliente);
+
+        // Sobrescribir los domicilios con el mapper correcto
+        if (cliente.getDomicilios() != null && !cliente.getDomicilios().isEmpty()) {
+            response.setDomicilios(
+                    cliente.getDomicilios().stream()
+                            .map(domicilioMapper::toResponseDTO)  // ← USAR toResponseDTO
+                            .collect(Collectors.toList())
+            );
+
+            // 🐛 DEBUG - Remover en producción
+            System.out.println("🏠 Domicilios mapeados: " + response.getDomicilios().size());
+            response.getDomicilios().forEach(d ->
+                    System.out.println("  - ID: " + d.getIdDomicilio() + ", Dirección: " + d.getCalle() + " " + d.getNumero())
+            );
+        }
+
+        return response;
+    }
 }

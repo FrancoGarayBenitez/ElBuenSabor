@@ -37,6 +37,7 @@ public class Pedido {
     @Column(nullable = false)
     private Estado estado;
 
+    private String observaciones;
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_envio", nullable = false)
     private TipoEnvio tipoEnvio;
