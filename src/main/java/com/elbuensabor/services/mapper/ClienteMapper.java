@@ -12,6 +12,7 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
 
     // ENTITY → RESPONSE DTO
     @Override
+    @Mapping(source = "usuario.rol", target = "rol") // <-- ¡¡AÑADE ESTA LÍNEA!!
     @Mapping(source = "usuario.email", target = "email")
     @Mapping(source = "domicilios", target = "domicilios", qualifiedByName = "toResponseDTO")  // ← AHORA FUNCIONARÁ
     ClienteResponseDTO toDTO(Cliente entity);

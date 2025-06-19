@@ -19,6 +19,6 @@ public class ClienteResponseDTO {
     private String email;
     private String telefono;
     private LocalDate fechaNacimiento;
-    private List<DomicilioResponseDTO> domicilios;
+    private List<DomicilioResponseDTO> domicilios; // <-- Cambia a DomicilioResponseDTO
     private ImagenDTO imagen;
 }

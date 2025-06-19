@@ -13,8 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.stream.Collectors;
-
 @Service
 public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, ClienteResponseDTO, IClienteRepository, ClienteMapper>
         implements IClienteService {
@@ -26,7 +24,7 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
     public ClienteServiceImpl(IClienteRepository repository,
                               ClienteMapper mapper,
                               PasswordEncoder passwordEncoder,
-                              DomicilioMapper domicilioMapper) {
+                              DomicilioMapper domicilioMapper) { // Agregarlo al constructor
         super(repository, mapper, Cliente.class, ClienteResponseDTO.class);
         this.passwordEncoder = passwordEncoder;
         this.domicilioMapper = domicilioMapper;
@@ -109,7 +107,3 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
                     System.out.println("  - ID: " + d.getIdDomicilio() + ", Dirección: " + d.getCalle() + " " + d.getNumero())
             );
         }
-
-        return response;
-    }
-}
