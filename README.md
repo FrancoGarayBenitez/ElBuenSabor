@@ -273,11 +273,11 @@ jwt.secret=clave-super-segura-de-produccion
 👥 Equipo de Desarrollo
 Este proyecto está siendo desarrollado por:
 
-Franco Garay - @FrancoGarayBenitez
-Luciano Reggio - @LucianoReggio
-Octavio Ragusa - @Octavio1993
-Matias Picón - @Pykon26
-Pedro Giorlando - @PedroGiorlando
+- Franco Garay - @FrancoGarayBenitez
+- Luciano Reggio - @LucianoReggio
+- Octavio Ragusa - @Octavio1993
+- Matias Picón - @Pykon26
+- Pedro Giorlando - @PedroGiorlando
 
 📞 Contacto
 Para consultas sobre el proyecto, puedes contactar a cualquier miembro del equipo de desarrollo a través de sus perfiles de GitHub.
