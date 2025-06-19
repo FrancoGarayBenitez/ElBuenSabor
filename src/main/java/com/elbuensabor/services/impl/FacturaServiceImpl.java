@@ -6,8 +6,11 @@ import com.elbuensabor.entities.*;
 import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IFacturaRepository;
+import com.elbuensabor.repository.IPagoRepository;
 import com.elbuensabor.services.IFacturaService;
 import com.elbuensabor.services.mapper.FacturaMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,10 @@ import java.util.stream.Collectors;
 @Service
 public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, FacturaResponseDTO, IFacturaRepository, FacturaMapper>
         implements IFacturaService {
+    private static final Logger logger = LoggerFactory.getLogger(FacturaServiceImpl.class);
+
+    @Autowired
+    private IPagoRepository pagoRepository;
 
     @Autowired
     public FacturaServiceImpl(IFacturaRepository repository, FacturaMapper mapper) {
@@ -140,7 +147,7 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
     private FacturaResponseDTO mapearFacturaSimple(Factura factura) {
         FacturaResponseDTO dto = new FacturaResponseDTO();
 
-        // ✅ MAPEO MANUAL DE CAMPOS BÁSICOS
+        // Mapeo básico
         dto.setIdFactura(factura.getIdFactura());
         dto.setFechaFactura(factura.getFechaFactura());
         dto.setNroComprobante(factura.getNroComprobante());
@@ -149,14 +156,13 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
         dto.setGastosEnvio(factura.getGastosEnvio());
         dto.setTotalVenta(factura.getTotalVenta());
 
-        // ✅ MAPEO SEGURO DE INFORMACIÓN DEL PEDIDO (SIN LAZY LOADING)
+        // Información del pedido
         if (factura.getPedido() != null) {
             Pedido pedido = factura.getPedido();
             dto.setPedidoId(pedido.getIdPedido());
             dto.setEstadoPedido(pedido.getEstado() != null ? pedido.getEstado().toString() : null);
             dto.setTipoEnvio(pedido.getTipoEnvio() != null ? pedido.getTipoEnvio().toString() : null);
 
-            // ✅ INFORMACIÓN DEL CLIENTE (SIN LAZY LOADING)
             if (pedido.getCliente() != null) {
                 dto.setClienteId(pedido.getCliente().getIdCliente());
                 dto.setNombreCliente(pedido.getCliente().getNombre());
@@ -164,11 +170,45 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
             }
         }
 
-        // ✅ VALORES POR DEFECTO PARA PAGOS (SIN ACCEDER A LA COLECCIÓN)
-        dto.setPagos(new ArrayList<>());
-        dto.setTotalPagado(0.0);
-        dto.setSaldoPendiente(factura.getTotalVenta());
-        dto.setCompletamentePagada(false);
+        // ✅ CALCULAR PAGOS REALES desde la BD
+        try {
+            List<Pago> pagosFactura = pagoRepository.findByFacturaIdFactura(factura.getIdFactura());
+
+            List<PagoSummaryDTO> pagosSummary = new ArrayList<>();
+            double totalPagado = 0.0;
+
+            for (Pago pago : pagosFactura) {
+                if (EstadoPago.APROBADO.equals(pago.getEstado())) {
+                    totalPagado += pago.getMonto();
+
+                    PagoSummaryDTO summary = new PagoSummaryDTO();
+                    summary.setIdPago(pago.getIdPago());
+                    summary.setFormaPago(pago.getFormaPago().name());
+                    summary.setEstado(pago.getEstado().name());
+                    summary.setMonto(pago.getMonto());
+                    summary.setFechaCreacion(pago.getFechaCreacion().format(
+                            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+
+                    pagosSummary.add(summary);
+                }
+            }
+
+            dto.setPagos(pagosSummary);
+            dto.setTotalPagado(totalPagado);
+            dto.setSaldoPendiente(factura.getTotalVenta() - totalPagado);
+            dto.setCompletamentePagada(totalPagado >= factura.getTotalVenta());
+
+            logger.info("Factura {}: {} pagos encontrados, total pagado: ${}",
+                    factura.getIdFactura(), pagosFactura.size(), totalPagado);
+
+        } catch (Exception e) {
+            logger.error("Error calculando pagos: {}", e.getMessage());
+            // Fallback a valores por defecto
+            dto.setPagos(new ArrayList<>());
+            dto.setTotalPagado(0.0);
+            dto.setSaldoPendiente(factura.getTotalVenta());
+            dto.setCompletamentePagada(false);
+        }
 
         return dto;
     }
