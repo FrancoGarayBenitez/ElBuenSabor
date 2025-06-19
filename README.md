@@ -270,10 +270,18 @@ jwt.secret=clave-super-segura-de-produccion
 - MapStruct por el mapeo automático
 - Comunidad de desarrolladores Java/Spring
 
-## 👥 Equipo de Desarrollo
+👥 Equipo de Desarrollo
+Este proyecto está siendo desarrollado por:
 
-Desarrollado como proyecto académico para la gestión completa de un restaurant con sistema de delivery.
+Franco Garay - @FrancoGarayBenitez
+Luciano Reggio - @LucianoReggio
+Octavio Ragusa - @Octavio1993
+Matias Picón - @Pykon26
+Pedro Giorlando - @PedroGiorlando
+
+📞 Contacto
+Para consultas sobre el proyecto, puedes contactar a cualquier miembro del equipo de desarrollo a través de sus perfiles de GitHub.
 
 ---
 
-**El Buen Sabor** - *Comida casera con amor* 🍕❤️
+**El Buen Sabor** 🍕
