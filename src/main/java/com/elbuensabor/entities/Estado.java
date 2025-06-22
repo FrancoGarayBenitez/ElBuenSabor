@@ -4,6 +4,6 @@ public enum Estado {
     PREPARACION,
     PENDIENTE,
     CANCELADO,
-    RECHAZADO,
+    LISTO,
     ENTREGADO
 }

@@ -34,4 +34,6 @@ public class PedidoResponseDTO {
     // Información adicional
     private Integer tiempoEstimadoTotal; // en minutos
     private Boolean stockSuficiente;
+
+    private String observaciones;
 }

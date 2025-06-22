@@ -20,6 +20,7 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(source = "tipoEnvio", target = "tipoEnvio")
     @Mapping(source = "domicilio", target = "domicilio")
     @Mapping(source = "detalles", target = "detalles")
+    @Mapping(source = "observaciones", target = "observaciones")  // ← AGREGADO
     @Mapping(target = "stockSuficiente", ignore = true) // Se calcula en el service
     @Mapping(target = "tiempoEstimadoTotal", ignore = true) // Se calcula en el service
     PedidoResponseDTO toDTO(Pedido entity);
@@ -36,6 +37,7 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "sucursal", ignore = true) // Se asigna en el service
     @Mapping(target = "detalles", ignore = true) // Se crean en el service
     @Mapping(target = "factura", ignore = true)
+    @Mapping(source = "observaciones", target = "observaciones")  // ← AGREGADO
     Pedido toEntity(PedidoRequestDTO dto);
 
     // ==================== RESPONSE DTO → ENTITY (GENERIC) ====================
@@ -45,6 +47,8 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "sucursal", ignore = true)
     @Mapping(target = "detalles", ignore = true)
     @Mapping(target = "factura", ignore = true)
+    @Mapping(target = "totalCosto", ignore = true)  // ← AGREGADO para quitar warning
+    @Mapping(source = "observaciones", target = "observaciones")  // ← AGREGADO
     Pedido toEntity(PedidoResponseDTO dto);
 
     // ==================== UPDATE FROM DTO ====================
@@ -55,5 +59,7 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "sucursal", ignore = true)
     @Mapping(target = "detalles", ignore = true)
     @Mapping(target = "factura", ignore = true)
+    @Mapping(target = "totalCosto", ignore = true)  // ← AGREGADO para quitar warning
+    @Mapping(source = "observaciones", target = "observaciones")  // ← AGREGADO
     void updateEntityFromDTO(PedidoResponseDTO dto, @MappingTarget Pedido entity);
 }

@@ -6,6 +6,7 @@ import com.elbuensabor.entities.Domicilio;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
 
 @Mapper(componentModel = "spring")
 public interface DomicilioMapper extends BaseMapper<Domicilio, DomicilioDTO> {
@@ -26,6 +27,12 @@ public interface DomicilioMapper extends BaseMapper<Domicilio, DomicilioDTO> {
     void updateEntityFromDTO(DomicilioDTO dto, @MappingTarget Domicilio entity);
 
     // ==================== NUEVO MAPEO PARA PEDIDOS ====================
+    @Named("toResponseDTO")
+    @Mapping(source = "idDomicilio", target = "idDomicilio")  // ← AGREGADO
+    @Mapping(source = "calle", target = "calle")
+    @Mapping(source = "numero", target = "numero")
+    @Mapping(source = "cp", target = "cp")
+    @Mapping(source = "localidad", target = "localidad")
     @Mapping(target = "direccionCompleta", expression = "java(construirDireccionCompleta(entity))")
     DomicilioResponseDTO toResponseDTO(Domicilio entity);
 
