@@ -1,12 +1,14 @@
 package com.elbuensabor.services.impl;
 
+import com.elbuensabor.dto.request.ClienteRegisterDTO;
+import com.elbuensabor.dto.response.ClienteResponseDTO;
 import com.elbuensabor.dto.response.LoginResponseDTO;
-import com.elbuensabor.entities.Cliente;
-import com.elbuensabor.entities.Rol;
-import com.elbuensabor.entities.Usuario;
+import com.elbuensabor.entities.*;
+import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.repository.IClienteRepository;
 import com.elbuensabor.services.IAuth0Service;
 import com.elbuensabor.services.mapper.ClienteMapper;
+import com.elbuensabor.services.mapper.DomicilioMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,10 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Implementación del servicio Auth0 para manejo de usuarios
+ * Sincroniza usuarios entre Auth0 y la base de datos local
+ */
 @Service
 public class Auth0ServiceImpl implements IAuth0Service {
 
     private static final Logger logger = LoggerFactory.getLogger(Auth0ServiceImpl.class);
+    private static final String NAMESPACE = "https://APIElBuenSabor";
+    private static final String ROLES_CLAIM = NAMESPACE + "/roles";
 
     @Autowired
     private IClienteRepository clienteRepository;
@@ -31,76 +39,32 @@ public class Auth0ServiceImpl implements IAuth0Service {
     @Autowired
     private ClienteMapper clienteMapper;
 
-    private static final String NAMESPACE = "https://APIElBuenSabor";
-    private static final String ROLES_CLAIM = NAMESPACE + "/roles";
+    @Autowired
+    private DomicilioMapper domicilioMapper;
 
     @Override
     @Transactional
     public LoginResponseDTO processAuth0User(Jwt jwt, Map<String, Object> userData) {
-        logger.info("=== AUTH0 JWT CLAIMS DEBUG ===");
-        logger.info("All claims: {}", jwt.getClaims());
+        logger.info("Processing Auth0 user login: {}", jwt.getSubject());
 
         String auth0Id = jwt.getSubject();
 
-        // 🆕 USAR DATOS DEL FRONTEND SI ESTÁN DISPONIBLES
-        String email = null;
-        String name = null;
-        String lastName = null;
+        // Extraer datos del usuario (frontend tiene prioridad sobre JWT)
+        UserData extractedData = extractUserData(jwt, userData);
 
-        if (userData != null) {
-            logger.info("=== USANDO DATOS DEL FRONTEND ===");
-            email = (String) userData.get("email");
-            name = (String) userData.get("given_name");
-            lastName = (String) userData.get("family_name");
-            String fullName = (String) userData.get("name");
-
-            logger.info("Frontend data - email: {}, given_name: {}, family_name: {}, name: {}",
-                    email, name, lastName, fullName);
-
-            // Si no hay given_name/family_name, parsear nombre completo
-            if ((name == null || name.isEmpty()) && fullName != null) {
-                String[] nameParts = fullName.split(" ", 2);
-                name = nameParts[0];
-                lastName = nameParts.length > 1 ? nameParts[1] : "";
-            }
-        } else {
-            logger.info("=== USANDO DATOS DEL JWT (FALLBACK) ===");
-            email = jwt.getClaimAsString("email");
-            name = jwt.getClaimAsString("given_name");
-            lastName = jwt.getClaimAsString("family_name");
-            String fullName = jwt.getClaimAsString("name");
-
-            if ((name == null || name.isEmpty()) && fullName != null) {
-                String[] nameParts = fullName.split(" ", 2);
-                name = nameParts[0];
-                lastName = nameParts.length > 1 ? nameParts[1] : "";
-            }
-        }
-
-        logger.info("Final extracted values:");
-        logger.info("- email: {}", email);
-        logger.info("- name: {}", name);
-        logger.info("- lastName: {}", lastName);
-
-        // Validar email
-        if (email == null || email.trim().isEmpty()) {
-            if (auth0Id.contains("@clients")) {
-                throw new IllegalArgumentException("Este tipo de token no es válido para login de usuarios. Use un token de usuario real.");
-            }
-            email = "user-" + auth0Id.replaceAll("[^a-zA-Z0-9]", "") + "@auth0.temp";
-            logger.warn("Email no disponible, usando email temporal: {}", email);
-        }
-
-        // Valores por defecto
-        name = name != null && !name.trim().isEmpty() ? name : "Usuario";
-        lastName = lastName != null && !lastName.trim().isEmpty() ? lastName : "Auth0";
-
-        // Extraer roles
+        // Extraer rol del JWT
         Rol userRole = extractRoleFromJwt(jwt);
 
-        // Buscar o crear usuario
-        Cliente cliente = findOrCreateClienteFromAuth0(auth0Id, email, name, lastName, userRole);
+        // Buscar o crear cliente
+        Cliente cliente = findOrCreateClienteFromAuth0(
+                auth0Id,
+                extractedData.email,
+                extractedData.nombre,
+                extractedData.apellido,
+                userRole
+        );
 
+        // Construir respuesta de login
         return new LoginResponseDTO(
                 jwt.getTokenValue(),
                 cliente.getUsuario().getEmail(),
@@ -110,115 +74,248 @@ public class Auth0ServiceImpl implements IAuth0Service {
                 cliente.getApellido()
         );
     }
+
+    @Override
+    @Transactional
+    public ClienteResponseDTO registerClienteFromAuth0(Jwt jwt, ClienteRegisterDTO registerDTO) {
+        logger.info("Registering Auth0 user with additional data: {}", jwt.getSubject());
+
+        String auth0Id = jwt.getSubject();
+        String email = jwt.getClaimAsString("email");
+
+        // Validar que no exista ya un cliente con este auth0Id
+        if (clienteRepository.findByUsuarioAuth0Id(auth0Id).isPresent()) {
+            throw new DuplicateResourceException("El usuario ya está registrado");
+        }
+
+        // Validar email si está disponible
+        if (email != null && !email.equals(registerDTO.getEmail())) {
+            throw new IllegalArgumentException("El email del token no coincide con el email de registro");
+        }
+
+        // Extraer rol del JWT
+        Rol userRole = extractRoleFromJwt(jwt);
+
+        // Crear Usuario vinculado a Auth0
+        Usuario usuario = new Usuario();
+        usuario.setAuth0Id(auth0Id);
+        usuario.setEmail(registerDTO.getEmail());
+        usuario.setPassword(""); // Sin password local para usuarios de Auth0
+        usuario.setRol(userRole);
+
+        // Crear Cliente con datos del DTO
+        Cliente cliente = clienteMapper.toEntity(registerDTO);
+        cliente.setUsuario(usuario);
+
+        // Crear Domicilio si está presente
+        if (registerDTO.getDomicilio() != null) {
+            Domicilio domicilio = domicilioMapper.toEntity(registerDTO.getDomicilio());
+            domicilio.setCliente(cliente);
+            cliente.getDomicilios().add(domicilio);
+        }
+
+        // Crear Imagen si está presente
+        if (registerDTO.getImagen() != null) {
+            Imagen imagen = new Imagen();
+            imagen.setDenominacion(registerDTO.getImagen().getDenominacion());
+            imagen.setUrl(registerDTO.getImagen().getUrl());
+            cliente.setImagen(imagen);
+        }
+
+        // Guardar cliente
+        Cliente savedCliente = clienteRepository.save(cliente);
+
+        logger.info("Cliente registered successfully for Auth0 user: {}", auth0Id);
+
+        return clienteMapper.toDTO(savedCliente);
+    }
+
     @Override
     @Transactional
     public Cliente findOrCreateClienteFromAuth0(String auth0Id, String email, String nombre, String apellido, Rol rol) {
-        logger.info("=== BÚSQUEDA DE USUARIO ===");
-        logger.info("Buscando usuario con auth0Id: {}", auth0Id);
-        logger.info("Email: {}", email);
+        logger.debug("Finding or creating cliente for Auth0 ID: {}", auth0Id);
 
-        // Primero buscar por auth0Id
-        try {
-            Optional<Cliente> existingByAuth0Id = clienteRepository.findByUsuarioAuth0Id(auth0Id);
-            if (existingByAuth0Id.isPresent()) {
-                logger.info("✅ Usuario encontrado por auth0Id");
-                Cliente cliente = existingByAuth0Id.get();
+        // Buscar por Auth0 ID primero
+        Optional<Cliente> existingByAuth0Id = clienteRepository.findByUsuarioAuth0Id(auth0Id);
+        if (existingByAuth0Id.isPresent()) {
+            logger.debug("Found existing cliente by Auth0 ID");
+            Cliente cliente = existingByAuth0Id.get();
 
-                // Actualizar datos si están vacíos o han cambiado
+            // CRÍTICO: Verificar y actualizar rol si cambió
+            Rol currentRole = cliente.getUsuario().getRol();
+            if (!currentRole.equals(rol)) {
+                logger.info("⚠️ Updating role for user {} from {} to {}", auth0Id, currentRole, rol);
+                cliente.getUsuario().setRol(rol);
+            }
+
+            // Actualizar otros datos también
+            updateClienteDataIfNeeded(cliente, email, nombre, apellido);
+            return clienteRepository.save(cliente);
+        }
+
+        // Buscar por email si el email no es temporal
+        if (email != null && !isTemporaryEmail(email)) {
+            Optional<Cliente> existingByEmail = clienteRepository.findByUsuarioEmail(email);
+            if (existingByEmail.isPresent()) {
+                logger.debug("Found existing cliente by email, linking Auth0 ID");
+                Cliente cliente = existingByEmail.get();
+                cliente.getUsuario().setAuth0Id(auth0Id);
+
+                // CRÍTICO: También actualizar rol aquí
+                Rol currentRole = cliente.getUsuario().getRol();
+                if (!currentRole.equals(rol)) {
+                    logger.info("⚠️ Updating role for user {} (by email) from {} to {}", auth0Id, currentRole, rol);
+                    cliente.getUsuario().setRol(rol);
+                }
+
                 updateClienteDataIfNeeded(cliente, email, nombre, apellido);
-
                 return clienteRepository.save(cliente);
             }
-            logger.info("❌ Usuario NO encontrado por auth0Id");
-        } catch (Exception e) {
-            logger.error("Error buscando por auth0Id: ", e);
         }
 
-        // Luego buscar por email (solo si el email no es temporal)
-        if (email != null && !email.contains("@auth0.temp")) {
-            try {
-                Optional<Cliente> existingByEmail = clienteRepository.findByUsuarioEmail(email);
-                if (existingByEmail.isPresent()) {
-                    logger.info("✅ Usuario encontrado por email, vinculando auth0Id");
-                    Cliente cliente = existingByEmail.get();
-                    cliente.getUsuario().setAuth0Id(auth0Id);
-
-                    // Actualizar datos también
-                    updateClienteDataIfNeeded(cliente, email, nombre, apellido);
-
-                    return clienteRepository.save(cliente);
-                }
-                logger.info("❌ Usuario NO encontrado por email");
-            } catch (Exception e) {
-                logger.error("Error buscando por email: ", e);
-            }
-        }
-
-        // Si llegamos aquí, crear nuevo cliente
-        logger.info("🆕 Creando nuevo cliente");
+        // Crear nuevo cliente
+        logger.debug("Creating new cliente for Auth0 user");
         return createNewClienteFromAuth0(auth0Id, email, nombre, apellido, rol);
     }
 
     /**
-     * Actualiza los datos del cliente si están vacíos o han cambiado
+     * Extrae datos del usuario priorizando datos del frontend sobre JWT
+     */
+    private UserData extractUserData(Jwt jwt, Map<String, Object> userData) {
+        String email = null;
+        String nombre = null;
+        String apellido = null;
+
+        // Priorizar datos del frontend
+        if (userData != null) {
+            email = (String) userData.get("email");
+            nombre = (String) userData.get("given_name");
+            apellido = (String) userData.get("family_name");
+
+            // Parsear nombre completo si no hay given_name/family_name
+            if ((nombre == null || nombre.isEmpty()) && userData.get("name") != null) {
+                String[] nameParts = ((String) userData.get("name")).split(" ", 2);
+                nombre = nameParts[0];
+                apellido = nameParts.length > 1 ? nameParts[1] : "";
+            }
+        }
+
+        // Fallback a datos del JWT
+        if (email == null) email = jwt.getClaimAsString("email");
+        if (nombre == null) nombre = jwt.getClaimAsString("given_name");
+        if (apellido == null) apellido = jwt.getClaimAsString("family_name");
+
+        // Parsear nombre completo del JWT si es necesario
+        if ((nombre == null || nombre.isEmpty()) && jwt.getClaimAsString("name") != null) {
+            String[] nameParts = jwt.getClaimAsString("name").split(" ", 2);
+            nombre = nameParts[0];
+            apellido = nameParts.length > 1 ? nameParts[1] : "";
+        }
+
+        // Generar email temporal si no hay email disponible
+        if (email == null || email.trim().isEmpty()) {
+            email = "user-" + jwt.getSubject().replaceAll("[^a-zA-Z0-9]", "") + "@auth0.temp";
+        }
+
+        // Valores por defecto
+        nombre = (nombre != null && !nombre.trim().isEmpty()) ? nombre : "Usuario";
+        apellido = (apellido != null && !apellido.trim().isEmpty()) ? apellido : "Auth0";
+
+        return new UserData(email, nombre, apellido);
+    }
+
+    /**
+     * Extrae el rol del JWT de Auth0
+     * ACTUALIZADO: Con logs de debug
+     */
+    private Rol extractRoleFromJwt(Jwt jwt) {
+        Object rolesObj = jwt.getClaim(ROLES_CLAIM);
+
+        logger.debug("🔍 Extracting role from JWT for user: {}", jwt.getSubject());
+        logger.debug("🔍 Raw roles claim: {}", rolesObj);
+
+        if (rolesObj instanceof List) {
+            List<?> roles = (List<?>) rolesObj;
+            if (!roles.isEmpty()) {
+                String role = roles.get(0).toString().toUpperCase();
+                logger.debug("🔍 First role from list: {}", role);
+                try {
+                    Rol extractedRole = Rol.valueOf(role);
+                    logger.info("✅ Extracted role {} for user {}", extractedRole, jwt.getSubject());
+                    return extractedRole;
+                } catch (IllegalArgumentException e) {
+                    logger.warn("❌ Unknown role '{}' for user {}, defaulting to CLIENTE", role, jwt.getSubject());
+                }
+            } else {
+                logger.warn("⚠️ Empty roles list for user {}, defaulting to CLIENTE", jwt.getSubject());
+            }
+        } else {
+            logger.warn("⚠️ Roles claim is not a list for user {}: {} (type: {})",
+                    jwt.getSubject(), rolesObj, rolesObj != null ? rolesObj.getClass().getSimpleName() : "null");
+        }
+
+        logger.info("🔄 Using default CLIENTE role for user {}", jwt.getSubject());
+        return Rol.CLIENTE;
+    }
+
+    /**
+     * Actualiza los datos del cliente si es necesario
+     * ACTUALIZADO: También actualiza el rol si es diferente
      */
     private void updateClienteDataIfNeeded(Cliente cliente, String email, String nombre, String apellido) {
         boolean updated = false;
 
-        // Actualizar email si está vacío o es diferente
-        if (email != null && !email.contains("@auth0.temp")) {
-            if (cliente.getUsuario().getEmail() == null || cliente.getUsuario().getEmail().isEmpty()
-                    || !cliente.getUsuario().getEmail().equals(email)) {
-                logger.info("Actualizando email: {} -> {}", cliente.getUsuario().getEmail(), email);
-                cliente.getUsuario().setEmail(email);
-                updated = true;
-            }
+        // Actualizar email si es válido y diferente
+        if (email != null && !isTemporaryEmail(email) && !email.equals(cliente.getUsuario().getEmail())) {
+            cliente.getUsuario().setEmail(email);
+            updated = true;
         }
 
-        // Actualizar nombre si está vacío o es diferente
-        if (nombre != null && !nombre.isEmpty()) {
-            if (cliente.getNombre() == null || cliente.getNombre().isEmpty()
-                    || cliente.getNombre().equals("Usuario")) {
-                logger.info("Actualizando nombre: {} -> {}", cliente.getNombre(), nombre);
-                cliente.setNombre(nombre);
-                updated = true;
-            }
+        // Actualizar nombre si es mejor que el actual
+        if (shouldUpdateField(cliente.getNombre(), nombre)) {
+            cliente.setNombre(nombre);
+            updated = true;
         }
 
-        // Actualizar apellido si está vacío o es diferente
-        if (apellido != null && !apellido.isEmpty()) {
-            if (cliente.getApellido() == null || cliente.getApellido().isEmpty()
-                    || cliente.getApellido().equals("Auth0")) {
-                logger.info("Actualizando apellido: {} -> {}", cliente.getApellido(), apellido);
-                cliente.setApellido(apellido);
-                updated = true;
-            }
+        // Actualizar apellido si es mejor que el actual
+        if (shouldUpdateField(cliente.getApellido(), apellido)) {
+            cliente.setApellido(apellido);
+            updated = true;
         }
 
         if (updated) {
-            logger.info("✅ Datos del cliente actualizados");
-        } else {
-            logger.info("ℹ️ No se requieren actualizaciones");
+            logger.debug("Updated cliente data for user: {}", cliente.getUsuario().getAuth0Id());
         }
-    }
-    @Override
-    public boolean isAuth0Token(String token) {
-        // Los tokens de Auth0 son mucho más largos y tienen una estructura diferente
-        // También puedes verificar la estructura del JWT
-        return token != null && token.length() > 500; // Heurística simple
     }
 
     /**
-     * Método privado para crear nuevo cliente desde Auth0
+     * Determina si un campo debe ser actualizado
      */
-    @Transactional
+    private boolean shouldUpdateField(String currentValue, String newValue) {
+        if (newValue == null || newValue.trim().isEmpty()) return false;
+        if (currentValue == null || currentValue.trim().isEmpty()) return true;
+
+        // No actualizar si el valor actual no es genérico
+        return "Usuario".equals(currentValue) || "Auth0".equals(currentValue);
+    }
+
+    /**
+     * Verifica si un email es temporal
+     */
+    private boolean isTemporaryEmail(String email) {
+        return email != null && email.contains("@auth0.temp");
+    }
+
+    /**
+     * Crea un nuevo cliente desde Auth0
+     */
     private Cliente createNewClienteFromAuth0(String auth0Id, String email, String nombre, String apellido, Rol rol) {
         // Crear Usuario
         Usuario usuario = new Usuario();
         usuario.setAuth0Id(auth0Id);
         usuario.setEmail(email);
-        usuario.setPassword(""); // Los usuarios de Auth0 no tienen password local
-        usuario.setRol(rol != null ? rol : Rol.CLIENTE);
+        usuario.setPassword(""); // Sin password para usuarios de Auth0
+        usuario.setRol(rol);
 
         // Crear Cliente
         Cliente cliente = new Cliente();
@@ -234,24 +331,17 @@ public class Auth0ServiceImpl implements IAuth0Service {
     }
 
     /**
-     * Método privado para extraer rol del JWT
+     * Clase interna para encapsular datos del usuario
      */
-    private Rol extractRoleFromJwt(Jwt jwt) {
-        Object rolesObj = jwt.getClaim(ROLES_CLAIM);
+    private static class UserData {
+        final String email;
+        final String nombre;
+        final String apellido;
 
-        if (rolesObj instanceof List) {
-            List<?> roles = (List<?>) rolesObj;
-            if (!roles.isEmpty()) {
-                String role = roles.get(0).toString().toUpperCase();
-                try {
-                    return Rol.valueOf(role);
-                } catch (IllegalArgumentException e) {
-                    // Si el rol no existe en nuestro enum, usar CLIENTE por defecto
-                    return Rol.CLIENTE;
-                }
-            }
+        UserData(String email, String nombre, String apellido) {
+            this.email = email;
+            this.nombre = nombre;
+            this.apellido = apellido;
         }
-
-        return Rol.CLIENTE;
     }
 }

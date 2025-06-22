@@ -8,26 +8,34 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
+/**
+ * DTO para registro de clientes con Auth0
+ * El usuario ya debe estar autenticado en Auth0 antes de usar este DTO
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ClienteRegisterDTO {
+
     @NotBlank(message = "El nombre es obligatorio")
+    @Size(min = 2, max = 50, message = "El nombre debe tener entre 2 y 50 caracteres")
     private String nombre;
 
     @NotBlank(message = "El apellido es obligatorio")
+    @Size(min = 2, max = 50, message = "El apellido debe tener entre 2 y 50 caracteres")
     private String apellido;
 
     @NotBlank(message = "El teléfono es obligatorio")
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Teléfono inválido")
+    @Pattern(regexp = "^[0-9+\\-\\s()]{10,20}$", message = "Formato de teléfono inválido")
     private String telefono;
 
     @NotBlank(message = "El email es obligatorio")
     @Email(message = "El email debe ser válido")
+    @Size(max = 100, message = "El email no puede exceder 100 caracteres")
     private String email;
 
     @NotNull(message = "La fecha de nacimiento es obligatoria")
-    @Past(message = "La fecha debe ser en el pasado")
+    @Past(message = "La fecha de nacimiento debe ser en el pasado")
     private LocalDate fechaNacimiento;
 
     @Valid
@@ -35,16 +43,5 @@ public class ClienteRegisterDTO {
     private DomicilioDTO domicilio;
 
     @Valid
-    private ImagenDTO imagen;
-
-    @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
-    @Pattern(
-            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
-            message = "La contraseña debe contener al menos 1 mayúscula, 1 minúscula, 1 número y 1 símbolo"
-    )
-    private String password;
-
-    @NotBlank(message = "La confirmación de contraseña es obligatoria")
-    private String confirmPassword;
+    private ImagenDTO imagen; // Opcional
 }
