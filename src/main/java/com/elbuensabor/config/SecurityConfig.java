@@ -1,7 +1,5 @@
 package com.elbuensabor.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -13,84 +11,59 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true) // Agregamos esto
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
-    @Autowired
-    private CorsConfigurationSource corsConfigurationSource;
+    private final CorsConfigurationSource corsConfigurationSource;
 
-    private final CorsConfig corsConfig;
-
-    public SecurityConfig(CorsConfig corsConfig) {
-        this.corsConfig = corsConfig;
+    public SecurityConfig(CorsConfigurationSource corsConfigurationSource) {
+        this.corsConfigurationSource = corsConfigurationSource;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        System.out.println("=== CREATING SECURITY FILTER CHAIN ===");
-
-        http
-                // Habilitar CORS
+        return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-
-                // Deshabilitar CSRF para APIs REST
                 .csrf(csrf -> csrf.disable())
-
-                // Configurar gestión de sesiones como STATELESS
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Configurar OAuth2 Resource Server SOLO para Auth0
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            System.out.println("=== AUTH ENTRY POINT TRIGGERED ===");
-                            System.out.println("Request: " + request.getRequestURI());
-                            System.out.println("Method: " + request.getMethod());
-                            System.out.println("Auth Exception: " + authException.getMessage());
-                            response.sendError(401, "Unauthorized");
-                        })
-                        .jwt(jwt -> jwt
-                                .jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter())
-                        )
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter()))
                 )
+                .authorizeHttpRequests(auth -> auth
+                        // Endpoints públicos
+                        .requestMatchers(
+                                "/api/auth0/register",
+                                "/api/categorias/**",
+                                "/api/articulos-insumo/**",
+                                "/api/unidades-medida/**",
+                                "/api/articulos-manufacturados/**",
+                                "/payment/**",
+                                "/webhooks/mercadopago"
+                        ).permitAll()
 
-                // Configurar autorización de endpoints
-                .authorizeHttpRequests(auth -> {
-                    System.out.println("=== CONFIGURING AUTHORIZATION ===");
-                    auth
-                            // Endpoints públicos (no requieren autenticación)
-                            .requestMatchers("/api/auth0/register").permitAll()
-                            .requestMatchers("/api/categorias/**").permitAll()
-                            .requestMatchers("/api/articulos-insumo/**").permitAll()
-                            .requestMatchers("/api/unidades-medida/**").permitAll()
-                            .requestMatchers("/api/articulos-manufacturados/**").permitAll()
+                        // CORS preflight
+                        .requestMatchers("OPTIONS", "/**").permitAll()
 
-                            // Endpoints de MercadoPago (públicos)
-                            .requestMatchers("/payment/**").permitAll()
-                            .requestMatchers("/webhooks/mercadopago").permitAll()
+                        // Endpoints autenticados
+                        .requestMatchers(
+                                "/api/clientes/**",
+                                "/api/pedidos/**",
+                                "/api/auth0/login",
+                                "/api/auth0/me",
+                                "/api/auth0/validate",
+                                "/api/auth0/profile",
+                                "/api/auth0/complete-profile",
+                                "/api/auth0/refresh-roles"
+                        ).authenticated()
 
-                            // Permitir OPTIONS requests (preflight CORS)
-                            .requestMatchers("OPTIONS", "/**").permitAll()
+                        // Endpoints de admin
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                            // Endpoints que requieren autenticación
-                            .requestMatchers("/api/clientes/**").authenticated()
-                            .requestMatchers("/api/pedidos/**").authenticated()
-                            .requestMatchers("/api/auth0/login").authenticated()
-                            .requestMatchers("/api/auth0/me").authenticated()
-                            .requestMatchers("/api/auth0/validate").authenticated()
-                            .requestMatchers("/api/auth0/profile").authenticated()
-
-                            // Endpoints de admin (requieren rol ADMIN)
-                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-                            // Todos los demás endpoints requieren autenticación
-                            .anyRequest().authenticated();
-                })
-
-                // Deshabilitar autenticación básica y form login
+                        // Resto requiere autenticación
+                        .anyRequest().authenticated()
+                )
                 .httpBasic(httpBasic -> httpBasic.disable())
-                .formLogin(form -> form.disable());
-
-        System.out.println("=== SECURITY FILTER CHAIN CREATED ===");
-        return http.build();
+                .formLogin(form -> form.disable())
+                .build();
     }
 }
