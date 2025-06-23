@@ -14,62 +14,104 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Convertidor de JWT de Auth0 a Authentication de Spring Security
+ */
 @Component
 public class Auth0JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private static final Logger logger = LoggerFactory.getLogger(Auth0JwtAuthenticationConverter.class);
+
+    // Namespace configurado en Auth0 Action - debe coincidir exactamente
     private static final String NAMESPACE = "https://APIElBuenSabor";
     private static final String ROLES_CLAIM = NAMESPACE + "/roles";
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         try {
-            logger.info("=== AUTH0 JWT PROCESSING ===");
-            logger.info("JWT Subject: {}", jwt.getSubject());
-            logger.info("JWT Issuer: {}", jwt.getIssuer());
-            logger.info("JWT Claims: {}", jwt.getClaims());
+            logger.debug("Converting Auth0 JWT for user: {}", jwt.getSubject());
 
+            // Extraer authorities (roles) del JWT
             Collection<SimpleGrantedAuthority> authorities = extractAuthorities(jwt);
-            logger.info("Extracted authorities: {}", authorities);
 
+            logger.debug("Extracted authorities for user {}: {}", jwt.getSubject(), authorities);
+
+            // Crear y retornar token de autenticación
             return new JwtAuthenticationToken(jwt, authorities);
+
         } catch (Exception e) {
-            logger.error("Error processing Auth0 JWT: ", e);
-            throw e;
+            logger.error("Error converting Auth0 JWT for user {}: {}", jwt.getSubject(), e.getMessage());
+
+            // En caso de error, asignar rol de cliente por defecto
+            Collection<SimpleGrantedAuthority> defaultAuthorities =
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_CLIENTE"));
+
+            logger.warn("Using default CLIENTE role due to error for user: {}", jwt.getSubject());
+            return new JwtAuthenticationToken(jwt, defaultAuthorities);
         }
     }
 
+    /**
+     * Extrae los roles del JWT y los convierte a Spring Security authorities
+     */
     private Collection<SimpleGrantedAuthority> extractAuthorities(Jwt jwt) {
         try {
-            logger.info("Looking for roles in claim: {}", ROLES_CLAIM);
+            // Obtener el claim de roles del JWT
+            Object rolesObject = jwt.getClaim(ROLES_CLAIM);
 
-            // Extraer roles del custom claim que definiste en Auth0
-            Object rolesObj = jwt.getClaim(ROLES_CLAIM);
-            logger.info("Roles object: {} (type: {})", rolesObj,
-                    rolesObj != null ? rolesObj.getClass().getSimpleName() : "null");
-
-            if (rolesObj instanceof List) {
-                List<?> roles = (List<?>) rolesObj;
-                logger.info("Found roles list: {}", roles);
-
-                return roles.stream()
-                        .map(role -> {
-                            String roleStr = role.toString().toUpperCase();
-                            String finalRole = roleStr.startsWith("ROLE_") ?
-                                    roleStr : "ROLE_" + roleStr;
-                            logger.info("Mapping role: {} -> {}", role, finalRole);
-                            return new SimpleGrantedAuthority(finalRole);
-                        })
-                        .collect(Collectors.toList());
+            if (rolesObject == null) {
+                logger.debug("No roles claim found for user: {}, using default CLIENTE role", jwt.getSubject());
+                return getDefaultAuthorities();
             }
 
-            // Si no hay roles específicos, asignar rol de cliente por defecto
-            logger.warn("No roles found, assigning default ROLE_CLIENTE");
-            return Collections.singletonList(new SimpleGrantedAuthority("ROLE_CLIENTE"));
+            // Verificar que sea una lista
+            if (!(rolesObject instanceof List)) {
+                logger.warn("Roles claim is not a list for user: {}, found: {}", jwt.getSubject(), rolesObject.getClass().getSimpleName());
+
+                // Intentar convertir a String si no es lista
+                if (rolesObject instanceof String) {
+                    String roleString = (String) rolesObject;
+                    String authority = roleString.trim().toUpperCase();
+                    authority = authority.startsWith("ROLE_") ? authority : "ROLE_" + authority;
+                    return Collections.singletonList(new SimpleGrantedAuthority(authority));
+                }
+
+                return getDefaultAuthorities();
+            }
+
+            List<?> roles = (List<?>) rolesObject;
+
+            if (roles.isEmpty()) {
+                logger.debug("Empty roles list for user: {}, using default CLIENTE role", jwt.getSubject());
+                return getDefaultAuthorities();
+            }
+
+            // Convertir roles a authorities
+            List<SimpleGrantedAuthority> authorities = roles.stream()
+                    .map(role -> {
+                        String roleString = role.toString().trim().toUpperCase();
+
+                        // Asegurar que tenga el prefijo ROLE_
+                        String authority = roleString.startsWith("ROLE_") ?
+                                roleString : "ROLE_" + roleString;
+
+                        return new SimpleGrantedAuthority(authority);
+                    })
+                    .collect(Collectors.toList());
+
+            logger.debug("Successfully extracted {} authorities from roles: {}", authorities.size(), roles);
+            return authorities;
 
         } catch (Exception e) {
-            logger.error("Error extracting authorities: ", e);
-            return Collections.singletonList(new SimpleGrantedAuthority("ROLE_CLIENTE"));
+            logger.error("Error extracting authorities from JWT: {}", e.getMessage());
+            return getDefaultAuthorities();
         }
+    }
+
+    /**
+     * Retorna las authorities por defecto cuando no se pueden extraer roles
+     */
+    private Collection<SimpleGrantedAuthority> getDefaultAuthorities() {
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_CLIENTE"));
     }
 }
