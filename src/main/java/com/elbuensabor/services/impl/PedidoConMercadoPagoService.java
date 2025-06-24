@@ -3,15 +3,21 @@ package com.elbuensabor.services.impl;
 import com.elbuensabor.dto.request.MercadoPagoPreferenceDTO;
 import com.elbuensabor.dto.request.PedidoConMercadoPagoRequestDTO;
 import com.elbuensabor.dto.request.PedidoRequestDTO;
+import com.elbuensabor.dto.request.PagoRequestDTO; // ✅ NUEVO IMPORT
 import com.elbuensabor.dto.response.FacturaResponseDTO;
 import com.elbuensabor.dto.response.MercadoPagoPreferenceResponseDTO;
 import com.elbuensabor.dto.response.PedidoConMercadoPagoResponseDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
+import com.elbuensabor.dto.response.PagoResponseDTO; // ✅ NUEVO IMPORT
 import com.elbuensabor.entities.Articulo;
+import com.elbuensabor.entities.DatosMercadoPago; // ✅ NUEVO IMPORT
+import com.elbuensabor.entities.FormaPago; // ✅ NUEVO IMPORT
 import com.elbuensabor.repository.IArticuloRepository;
 import com.elbuensabor.services.IFacturaService;
 import com.elbuensabor.services.IMercadoPagoService;
 import com.elbuensabor.services.IPedidoService;
+import com.elbuensabor.services.IPagoService; // ✅ NUEVO IMPORT
+import com.elbuensabor.services.IDatosMercadoPagoService; // ✅ NUEVO IMPORT
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +43,13 @@ public class PedidoConMercadoPagoService {
 
     @Autowired
     private IArticuloRepository articuloRepository;
+
+    // ✅ NUEVAS DEPENDENCIAS PARA PERSISTENCIA
+    @Autowired
+    private IPagoService pagoService;
+
+    @Autowired
+    private IDatosMercadoPagoService datosMpService;
 
     @Transactional
     public PedidoConMercadoPagoResponseDTO crearPedidoConMercadoPago(PedidoConMercadoPagoRequestDTO request) {
@@ -73,6 +86,35 @@ public class PedidoConMercadoPagoService {
                 logger.info("Creando preferencia de MercadoPago...");
                 mercadoPagoInfo = crearPreferenciaMercadoPago(request, pedidoCreado, calculoTotales);
                 logger.info("✅ Estado MercadoPago: {}", mercadoPagoInfo.getPreferenciaCreada() ? "EXITOSO" : "FALLÓ");
+
+                // ==================== 🆕 PASO 5: PERSISTIR PAGO EN BASE DE DATOS 🆕 ====================
+                if (mercadoPagoInfo.getPreferenciaCreada()) {
+                    logger.info("💾 Paso 5: Persistiendo pago en base de datos...");
+
+                    try {
+                        // Crear registro de Pago
+                        PagoRequestDTO pagoRequest = new PagoRequestDTO();
+                        pagoRequest.setFacturaId(factura.getIdFactura());
+                        pagoRequest.setFormaPago(FormaPago.MERCADO_PAGO);
+                        pagoRequest.setMonto(calculoTotales.getTotalFinal());
+                        pagoRequest.setMoneda("ARS");
+                        pagoRequest.setDescripcion("Pago con MercadoPago - Pedido #" + pedidoCreado.getIdPedido());
+                        pagoRequest.setMercadoPagoPreferenceId(mercadoPagoInfo.getPreferenceId()); // 🔑 CLAVE
+
+                        PagoResponseDTO pagoCreado = pagoService.crearPago(pagoRequest);
+                        logger.info("✅ Pago persistido con ID: {} | Preference: {}",
+                                pagoCreado.getIdPago(), mercadoPagoInfo.getPreferenceId());
+
+                        // Crear datos iniciales de MercadoPago
+                        DatosMercadoPago datosMp = datosMpService.crearDatosInicialesPorPagoId(pagoCreado.getIdPago());
+                        logger.info("✅ DatosMercadoPago creados con ID: {}", datosMp.getIdMercadoPago());
+
+                    } catch (Exception e) {
+                        logger.error("❌ Error persistiendo pago (el pedido ya fue creado): {}", e.getMessage(), e);
+                        // No fallar el proceso completo, el pedido ya existe
+                    }
+                }
+
             } else {
                 logger.info("⏭️ Creación de preferencia MP omitida por configuración");
                 mercadoPagoInfo = new PedidoConMercadoPagoResponseDTO.MercadoPagoInfoDTO();
@@ -80,7 +122,7 @@ public class PedidoConMercadoPagoService {
                 mercadoPagoInfo.setErrorMercadoPago("No solicitado por el usuario");
             }
 
-            // ==================== PASO 5: RESPUESTA UNIFICADA ====================
+            // ==================== PASO 6: RESPUESTA UNIFICADA ====================
             long tiempoProcesamiento = System.currentTimeMillis() - inicioTiempo;
 
             logger.info("🎉 ¡PROCESO COMPLETADO EXITOSAMENTE EN {}ms!", tiempoProcesamiento);
@@ -104,7 +146,7 @@ public class PedidoConMercadoPagoService {
         }
     }
 
-    // ==================== MÉTODO PARA CALCULAR TOTALES CON DESCUENTOS ====================
+    // ==================== RESTO DE MÉTODOS (SIN CAMBIOS) ====================
 
     private PedidoConMercadoPagoResponseDTO.CalculoTotalesDTO calcularTotalesConDescuentos(PedidoConMercadoPagoRequestDTO request) {
         logger.info("Calculando totales con descuentos...");
@@ -165,8 +207,6 @@ public class PedidoConMercadoPagoService {
         return calculo;
     }
 
-    // ==================== MÉTODO PARA CONVERTIR A PEDIDO REQUEST ====================
-
     private PedidoRequestDTO convertirAPedidoRequest(PedidoConMercadoPagoRequestDTO request,
                                                      PedidoConMercadoPagoResponseDTO.CalculoTotalesDTO totales) {
 
@@ -190,8 +230,6 @@ public class PedidoConMercadoPagoService {
 
         return pedidoRequest;
     }
-
-    // ==================== MÉTODO PARA CREAR PREFERENCIA MERCADOPAGO ====================
 
     private PedidoConMercadoPagoResponseDTO.MercadoPagoInfoDTO crearPreferenciaMercadoPago(
             PedidoConMercadoPagoRequestDTO request,
@@ -227,9 +265,6 @@ public class PedidoConMercadoPagoService {
             String externalRef = "PEDIDO_" + pedido.getIdPedido() + "_" + System.currentTimeMillis();
             preferenceDTO.setExternalReference(externalRef);
 
-            // ❌ NO CONFIGURAR NOTIFICATION URL para sandbox
-            // ❌ NO CONFIGURAR BACK URLS problemáticas
-
             logger.info("Creando preferencia simplificada para sandbox...");
             logger.info("Items: {}, Payer: {}, External Ref: {}",
                     items.size(), payer.getEmail(), externalRef);
@@ -255,8 +290,6 @@ public class PedidoConMercadoPagoService {
 
         return mpInfo;
     }
-
-    // ==================== MÉTODO PARA CALCULAR TOTALES PREVIEW ====================
 
     @Transactional(readOnly = true)
     public PedidoConMercadoPagoResponseDTO.CalculoTotalesDTO calcularTotalesPreview(PedidoConMercadoPagoRequestDTO request) {
