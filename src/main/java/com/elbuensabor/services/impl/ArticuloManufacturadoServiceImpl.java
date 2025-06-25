@@ -93,15 +93,17 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
         }
 
         // Manejar imagen si existe
+        manufacturado.setImagenes(new ArrayList<>());
         if (manufacturadoRequestDTO.getImagen() != null) {
             Imagen imagen = crearImagen(manufacturadoRequestDTO.getImagen());
+            imagen.setArticulo(manufacturado);
             manufacturado.getImagenes().add(imagen);
+
         }
 
         ArticuloManufacturado savedManufacturado = repository.save(manufacturado);
         return mapearManufacturadoCompleto(savedManufacturado);
     }
-
     @Override
     @Transactional
     public ArticuloManufacturadoResponseDTO updateManufacturado(Long id, ArticuloManufacturadoRequestDTO manufacturadoRequestDTO) {
@@ -118,10 +120,27 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
         // Actualizar relaciones básicas
         asignarRelacionesBasicas(existingManufacturado, manufacturadoRequestDTO);
 
+        // ==================== MANEJO DE IMÁGENES - NUEVO ====================
+        // Limpiar imágenes existentes
+        if (existingManufacturado.getImagenes() != null) {
+            existingManufacturado.getImagenes().clear();
+        } else {
+            existingManufacturado.setImagenes(new ArrayList<>());
+        }
+
+        // Agregar nueva imagen si existe
+        if (manufacturadoRequestDTO.getImagen() != null) {
+            Imagen imagen = crearImagen(manufacturadoRequestDTO.getImagen());
+            // CLAVE: Establecer la relación bidireccional
+            imagen.setArticulo(existingManufacturado);
+            existingManufacturado.getImagenes().add(imagen);
+        }
+        // ================================================================
+
+        // Actualizar detalles
         detalleRepository.deleteByArticuloManufacturadoId(id);
         detalleRepository.flush(); // Forzar eliminación inmediata
 
-        // Actualizar detalles (eliminar existentes y crear nuevos)
         existingManufacturado.getDetalles().clear();
         crearDetalles(existingManufacturado, manufacturadoRequestDTO.getDetalles());
 

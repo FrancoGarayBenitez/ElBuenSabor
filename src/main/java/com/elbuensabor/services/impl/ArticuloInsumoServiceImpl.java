@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -75,11 +76,19 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
         // Asignar relaciones
         asignarRelaciones(insumo, insumoRequestDTO);
 
-        // Manejar imagen si existe
-        if (insumoRequestDTO.getImagen() != null) {
+        // ==================== MANEJO DE IMAGEN - NUEVO ====================
+        // Inicializar la lista de imágenes
+        insumo.setImagenes(new ArrayList<>());
+
+        // Solo agregar imagen si NO es para elaborar (es para venta)
+        if (!insumoRequestDTO.getEsParaElaborar() && insumoRequestDTO.getImagen() != null) {
             Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
+            // CLAVE: Establecer la relación bidireccional
+            imagen.setArticulo(insumo);
             insumo.getImagenes().add(imagen);
         }
+        // ================================================================
+
 
         ArticuloInsumo savedInsumo = repository.save(insumo);
         return mapearInsumoCompleto(savedInsumo);
@@ -107,6 +116,23 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
 
         // Actualizar relaciones
         asignarRelaciones(existingInsumo, insumoRequestDTO);
+
+        // ==================== MANEJO DE IMAGEN - NUEVO ====================
+        // Limpiar imágenes existentes
+        if (existingInsumo.getImagenes() != null) {
+            existingInsumo.getImagenes().clear();
+        } else {
+            existingInsumo.setImagenes(new ArrayList<>());
+        }
+
+        // Solo agregar imagen si NO es para elaborar (es para venta)
+        if (!insumoRequestDTO.getEsParaElaborar() && insumoRequestDTO.getImagen() != null) {
+            Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
+            // CLAVE: Establecer la relación bidireccional
+            imagen.setArticulo(existingInsumo);
+            existingInsumo.getImagenes().add(imagen);
+        }
+        // ================================================================
 
         ArticuloInsumo updatedInsumo = repository.save(existingInsumo);
         return mapearInsumoCompleto(updatedInsumo);
