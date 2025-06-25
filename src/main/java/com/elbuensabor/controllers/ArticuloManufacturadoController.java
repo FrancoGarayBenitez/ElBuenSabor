@@ -56,7 +56,17 @@ public class ArticuloManufacturadoController {
         articuloManufacturadoService.delete(id);
         return ResponseEntity.noContent().build();
     }
+    @DeleteMapping("/{id}/desactivar")
+    public ResponseEntity<Void> bajaLogica(@PathVariable Long id) {
+        articuloManufacturadoService.bajaLogica(id);
+        return ResponseEntity.noContent().build();
+    }
 
+    @PutMapping("/{id}/activar")
+    public ResponseEntity<Void> altaLogica(@PathVariable Long id) {
+        articuloManufacturadoService.altaLogica(id);
+        return ResponseEntity.noContent().build();
+    }
     // ==================== BÚSQUEDAS ESPECÍFICAS ====================
 
     @GetMapping("/categoria/{idCategoria}")
