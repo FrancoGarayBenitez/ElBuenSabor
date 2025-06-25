@@ -1,5 +1,7 @@
 package com.elbuensabor.services.impl;
 
+import com.elbuensabor.dto.response.DetallePedidoResponseDTO;
+import com.elbuensabor.dto.response.DomicilioResponseDTO;
 import com.elbuensabor.dto.response.FacturaResponseDTO;
 import com.elbuensabor.dto.response.PagoSummaryDTO;
 import com.elbuensabor.entities.*;
@@ -143,11 +145,11 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
         factura.setTotalVenta(totalVenta);
     }
 
-    // ✅ MAPEO ULTRA-SIMPLIFICADO SIN RIESGO DE RECURSIÓN
+    // ✅ MÉTODO ACTUALIZADO para mapear datos completos del pedido
     private FacturaResponseDTO mapearFacturaSimple(Factura factura) {
         FacturaResponseDTO dto = new FacturaResponseDTO();
 
-        // Mapeo básico
+        // Mapeo básico de factura
         dto.setIdFactura(factura.getIdFactura());
         dto.setFechaFactura(factura.getFechaFactura());
         dto.setNroComprobante(factura.getNroComprobante());
@@ -162,15 +164,73 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
             dto.setPedidoId(pedido.getIdPedido());
             dto.setEstadoPedido(pedido.getEstado() != null ? pedido.getEstado().toString() : null);
             dto.setTipoEnvio(pedido.getTipoEnvio() != null ? pedido.getTipoEnvio().toString() : null);
+            dto.setObservacionesPedido(pedido.getObservaciones());
 
+            // 🆕 INFORMACIÓN COMPLETA DEL CLIENTE
             if (pedido.getCliente() != null) {
-                dto.setClienteId(pedido.getCliente().getIdCliente());
-                dto.setNombreCliente(pedido.getCliente().getNombre());
-                dto.setApellidoCliente(pedido.getCliente().getApellido());
+                Cliente cliente = pedido.getCliente();
+                dto.setClienteId(cliente.getIdCliente());
+                dto.setNombreCliente(cliente.getNombre());
+                dto.setApellidoCliente(cliente.getApellido());
+                dto.setTelefonoCliente(cliente.getTelefono());
+            }
+
+            // 🆕 DOMICILIO DE ENTREGA (si es DELIVERY)
+            if (pedido.getDomicilio() != null && "DELIVERY".equals(dto.getTipoEnvio())) {
+                Domicilio domicilio = pedido.getDomicilio();
+                DomicilioResponseDTO domicilioDTO = new DomicilioResponseDTO();
+                domicilioDTO.setIdDomicilio(domicilio.getIdDomicilio());
+                domicilioDTO.setCalle(domicilio.getCalle());
+                domicilioDTO.setNumero(domicilio.getNumero());
+                domicilioDTO.setLocalidad(domicilio.getLocalidad());
+                domicilioDTO.setCp(domicilio.getCp());
+                dto.setDomicilioEntrega(domicilioDTO);
+            }
+
+            // 🆕 DETALLES REALES DEL PEDIDO
+            if (pedido.getDetalles() != null && !pedido.getDetalles().isEmpty()) {
+                logger.info("🔍 DEBUG: Cargando {} detalles reales del pedido {}",
+                        pedido.getDetalles().size(), pedido.getIdPedido());
+
+                List<DetallePedidoResponseDTO> detallesDTO = new ArrayList<>();
+
+                for (DetallePedido detalle : pedido.getDetalles()) {
+                    logger.info("🔍 DEBUG: Detalle - {} x{} = ${}",
+                            detalle.getArticulo().getDenominacion(),
+                            detalle.getCantidad(),
+                            detalle.getSubtotal());
+                    DetallePedidoResponseDTO detalleDTO = new DetallePedidoResponseDTO();
+                    detalleDTO.setIdDetallePedido(detalle.getIdDetallePedido());
+                    detalleDTO.setCantidad(detalle.getCantidad());
+                    detalleDTO.setSubtotal(detalle.getSubtotal());
+                    detalleDTO.setObservaciones(detalle.getObservaciones());
+
+                    // Información del artículo
+                    if (detalle.getArticulo() != null) {
+                        Articulo articulo = detalle.getArticulo();
+                        detalleDTO.setIdArticulo(articulo.getIdArticulo());
+                        detalleDTO.setDenominacionArticulo(articulo.getDenominacion());
+
+                        // Calcular precio unitario desde subtotal y cantidad
+                        if (detalle.getCantidad() != null && detalle.getCantidad() > 0) {
+                            double precioUnitario = detalle.getSubtotal() / detalle.getCantidad();
+                            detalleDTO.setPrecioUnitario(precioUnitario);
+                        }
+
+                        // Otros campos del artículo si están disponibles
+                        if (articulo.getUnidadMedida() != null) {
+                            detalleDTO.setUnidadMedida(articulo.getUnidadMedida().getDenominacion());
+                        }
+                    }
+
+                    detallesDTO.add(detalleDTO);
+                }
+
+                dto.setDetallesPedido(detallesDTO);
             }
         }
 
-        // ✅ CALCULAR PAGOS REALES desde la BD
+        // ✅ CALCULAR PAGOS REALES desde la BD (código existente sin cambios)
         try {
             List<Pago> pagosFactura = pagoRepository.findByFacturaIdFactura(factura.getIdFactura());
 

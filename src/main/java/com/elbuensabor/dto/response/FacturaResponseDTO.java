@@ -25,12 +25,23 @@ public class FacturaResponseDTO {
     private String estadoPedido;
     private String tipoEnvio;
 
-    // Información del cliente
+    // 🆕 INFORMACIÓN COMPLETA DEL CLIENTE
     private Long clienteId;
     private String nombreCliente;
     private String apellidoCliente;
+    private String emailCliente;        // ✅ NUEVO
+    private String telefonoCliente;     // ✅ NUEVO
 
-    // Información de pagos
+    // 🆕 DOMICILIO DE ENTREGA (si es DELIVERY)
+    private DomicilioResponseDTO domicilioEntrega;  // ✅ NUEVO
+
+    // 🆕 DETALLES REALES DEL PEDIDO
+    private List<DetallePedidoResponseDTO> detallesPedido;  // ✅ NUEVO
+
+    // 🆕 OBSERVACIONES DEL PEDIDO
+    private String observacionesPedido;  // ✅ NUEVO
+
+    // Información de pagos (existente)
     private List<PagoSummaryDTO> pagos;
     private Double totalPagado;
     private Double saldoPendiente;
