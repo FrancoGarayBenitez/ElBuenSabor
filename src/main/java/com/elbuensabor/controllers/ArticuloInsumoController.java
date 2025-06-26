@@ -7,13 +7,13 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize; // <-- 1. IMPORTA LA ANOTACIÓN
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/articulos-insumo")
-
 public class ArticuloInsumoController {
 
     private final IArticuloInsumoService articuloInsumoService;
@@ -38,12 +38,14 @@ public class ArticuloInsumoController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'COCINERO')") // <-- 2. REGLA AÑADIDA
     public ResponseEntity<ArticuloInsumoResponseDTO> createArticuloInsumo(@Valid @RequestBody ArticuloInsumoRequestDTO articuloRequestDTO) {
         ArticuloInsumoResponseDTO articuloCreado = articuloInsumoService.createInsumo(articuloRequestDTO);
         return new ResponseEntity<>(articuloCreado, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COCINERO')") // <-- 3. REGLA AÑADIDA
     public ResponseEntity<ArticuloInsumoResponseDTO> updateArticuloInsumo(
             @PathVariable Long id,
             @Valid @RequestBody ArticuloInsumoRequestDTO articuloRequestDTO) {
@@ -52,6 +54,7 @@ public class ArticuloInsumoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')") // <-- 4. REGLA AÑADIDA
     public ResponseEntity<Void> deleteArticuloInsumo(@PathVariable Long id) {
         articuloInsumoService.delete(id);
         return ResponseEntity.noContent().build();

@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Controlador para operaciones CRUD de clientes
+ * El registro se maneja en Auth0Controller
+ */
 @RestController
 @RequestMapping("/api/clientes")
 public class ClienteController {

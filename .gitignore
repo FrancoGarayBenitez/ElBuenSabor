@@ -36,4 +36,5 @@ out/
 ### VS Code ###
 .vscode/
 
-### comentado ###
+### Imágenes ###
+src/main/resources/static/img

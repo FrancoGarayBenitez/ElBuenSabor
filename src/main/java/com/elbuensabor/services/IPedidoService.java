@@ -30,6 +30,11 @@ public interface IPedidoService {
     List<PedidoResponseDTO> findPedidosEnPreparacion();
     List<PedidoResponseDTO> findPedidosListosParaEntrega();
 
+    List<PedidoResponseDTO> findPedidosListos();
+    List<PedidoResponseDTO> findPedidosListosParaRetiro();
+
+
     // Nuevo método para obtener factura del pedido
     FacturaResponseDTO getFacturaPedido(Long pedidoId);
+
 }

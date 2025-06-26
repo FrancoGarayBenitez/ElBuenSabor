@@ -49,8 +49,13 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "sucursal", ignore = true)
     @Mapping(target = "detalles", ignore = true)
     @Mapping(target = "factura", ignore = true)
+
+    @Mapping(target = "totalCosto", ignore = true)  // ← AGREGADO para quitar warning
+
+
     // ✅ NUEVO: Incluir observaciones en mapeo genérico
     @Mapping(source = "observaciones", target = "observaciones")
+
     Pedido toEntity(PedidoResponseDTO dto);
 
     // ==================== UPDATE FROM DTO ====================
@@ -61,7 +66,12 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "sucursal", ignore = true)
     @Mapping(target = "detalles", ignore = true)
     @Mapping(target = "factura", ignore = true)
+
+    @Mapping(target = "totalCosto", ignore = true)  // ← AGREGADO para quitar warning
+
+
     // ✅ NUEVO: Permitir actualización de observaciones
     @Mapping(source = "observaciones", target = "observaciones")
+
     void updateEntityFromDTO(PedidoResponseDTO dto, @MappingTarget Pedido entity);
 }
