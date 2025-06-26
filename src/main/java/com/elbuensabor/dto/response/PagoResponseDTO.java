@@ -5,6 +5,7 @@ import com.elbuensabor.entities.FormaPago;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.List;
 
 import java.time.LocalDateTime;
 
@@ -21,10 +22,15 @@ public class PagoResponseDTO {
     private LocalDateTime fechaActualizacion;
     private Double monto;
     private String moneda;
-    private String descripcion;
+
+    // ✅ NUEVO: Observaciones generales
+    private String observaciones;
 
     // Datos de Mercado Pago (si aplica)
     private DatosMercadoPagoDTO datosMercadoPago;
+
+    // Los detalles ya incluirán sus observaciones automáticamente
+    private List<DetallePedidoResponseDTO> detalles;
 
     @Data
     @NoArgsConstructor

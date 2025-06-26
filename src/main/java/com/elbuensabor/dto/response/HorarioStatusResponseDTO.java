@@ -10,4 +10,8 @@ import lombok.NoArgsConstructor;
 public class HorarioStatusResponseDTO {
     private boolean abierto;
     private String mensaje;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/ramaOcta

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.elbuensabor.dto.response.FacturaResponseDTO;
 
 import java.util.List;
 import java.util.Map;
@@ -48,7 +49,7 @@ public class PedidoController {
         return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
     }
 
-    // ==================== OBTENER PEDIDOS ====================
+    // ==================== OBTENER PEDIDOS - AL FINAL ====================
     @GetMapping
     public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
         List<PedidoResponseDTO> pedidos = pedidoService.findAll();
@@ -98,7 +99,7 @@ public class PedidoController {
         return ResponseEntity.ok(pedido);
     }
 
-    // ==================== VALIDACIONES PREVIAS ====================
+    // ==================== VALIDACIONES PREVIAS - PRIMERO ====================
     @PostMapping("/validar")
     public ResponseEntity<Boolean> validarPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
         Boolean esValido = pedidoService.validarStockDisponible(pedidoRequest);
@@ -183,5 +184,13 @@ public class PedidoController {
     public ResponseEntity<List<PedidoResponseDTO>> getPedidosMostradorListos() {
         List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaRetiro();
         return ResponseEntity.ok(pedidos);
+    }
+
+    // ==================== FACTURA ====================
+    // Agregar método en la sección de endpoints específicos (ANTES de /{id})
+    @GetMapping("/{id}/factura")
+    public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long id) {
+        FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
+        return ResponseEntity.ok(factura);
     }
 }
