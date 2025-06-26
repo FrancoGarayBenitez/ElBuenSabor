@@ -17,6 +17,7 @@ public class ArticuloManufacturadoResponseDTO {
     private Long idArticulo;
     private String denominacion;
     private Double precioVenta;
+    private Boolean eliminado;
 
     // Información de Unidad de Medida (cómo se VENDE el producto)
     private Long idUnidadMedida;

@@ -43,4 +43,8 @@ public interface IClienteRepository extends JpaRepository<Cliente, Long> {
      */
     @Query("SELECT COUNT(c) > 0 FROM Cliente c WHERE c.usuario.email = :email AND c.idCliente != :idCliente")
     boolean existsByUsuarioEmailAndIdClienteNot(@Param("email") String email, @Param("idCliente") Long idCliente);
+
+    
+
+    Optional<Cliente> findByUsuarioIdUsuario(Long idUsuario);
 }
