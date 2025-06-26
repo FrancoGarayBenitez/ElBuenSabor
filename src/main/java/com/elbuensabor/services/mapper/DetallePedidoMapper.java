@@ -15,6 +15,8 @@ public interface DetallePedidoMapper {
     @Mapping(source = "articulo.precioVenta", target = "precioUnitario")
     @Mapping(source = "articulo.unidadMedida.denominacion", target = "unidadMedida")
     @Mapping(target = "tiempoPreparacion", expression = "java(calcularTiempoPreparacion(entity.getArticulo()))")
+    // ✅ NUEVO: Mapeo explícito de observaciones
+    @Mapping(source = "observaciones", target = "observaciones")
     DetallePedidoResponseDTO toDTO(DetallePedido entity);
 
     // ==================== REQUEST DTO → ENTITY ====================
@@ -22,6 +24,8 @@ public interface DetallePedidoMapper {
     @Mapping(target = "subtotal", ignore = true) // Se calcula en el service
     @Mapping(target = "articulo", ignore = true) // Se asigna en el service
     @Mapping(target = "pedido", ignore = true) // Se asigna en el service
+    // ✅ NUEVO: Mapeo de observaciones desde request
+    @Mapping(source = "observaciones", target = "observaciones")
     DetallePedido toEntity(DetallePedidoRequestDTO dto);
 
     // ==================== MÉTODO AUXILIAR ====================

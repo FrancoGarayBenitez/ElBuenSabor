@@ -29,4 +29,8 @@ public class DetallePedido {
     @ManyToOne
     @JoinColumn(name = "id_pedido", nullable = false)
     private Pedido pedido;
+
+    // ✅ NUEVO CAMPO: Observaciones específicas del producto
+    @Column(name = "observaciones", columnDefinition = "TEXT")
+    private String observaciones;
 }

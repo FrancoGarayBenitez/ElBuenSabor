@@ -1,16 +1,18 @@
 package com.elbuensabor.entities;
 
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "pagos")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Pago {
@@ -19,8 +21,10 @@ public class Pago {
     @Column(name = "id_pago")
     private Long idPago;
 
+    // ✅ SOLUCIÓN DEFINITIVA: Ignorar factura en JSON
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_factura", nullable = false)
+    @JsonIgnore  // ✅ Evita recursión completamente
     private Factura factura;
 
     @Enumerated(EnumType.STRING)
@@ -82,6 +86,7 @@ public class Pago {
         return FormaPago.EFECTIVO.equals(this.formaPago);
     }
 
+    // ✅ toString() personalizado SIN referencias circulares
     @Override
     public String toString() {
         return "Pago{" +
@@ -95,5 +100,18 @@ public class Pago {
                 ", facturaId=" + (factura != null ? factura.getIdFactura() : null) +
                 '}';
     }
-}
 
+    // ✅ equals() y hashCode() seguros
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Pago)) return false;
+        Pago pago = (Pago) o;
+        return idPago != null && idPago.equals(pago.idPago);
+    }
+
+    @Override
+    public int hashCode() {
+        return idPago != null ? idPago.hashCode() : 0;
+    }
+}
