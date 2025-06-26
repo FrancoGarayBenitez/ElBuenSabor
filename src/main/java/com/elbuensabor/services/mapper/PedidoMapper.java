@@ -51,7 +51,7 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "factura", ignore = true)
 
     @Mapping(target = "totalCosto", ignore = true)  // ← AGREGADO para quitar warning
-    @Mapping(source = "observaciones", target = "observaciones")  // ← AGREGADO
+
 
     // ✅ NUEVO: Incluir observaciones en mapeo genérico
     @Mapping(source = "observaciones", target = "observaciones")
@@ -68,7 +68,7 @@ public interface PedidoMapper extends BaseMapper<Pedido, PedidoResponseDTO> {
     @Mapping(target = "factura", ignore = true)
 
     @Mapping(target = "totalCosto", ignore = true)  // ← AGREGADO para quitar warning
-    @Mapping(source = "observaciones", target = "observaciones")  // ← AGREGADO
+
 
     // ✅ NUEVO: Permitir actualización de observaciones
     @Mapping(source = "observaciones", target = "observaciones")

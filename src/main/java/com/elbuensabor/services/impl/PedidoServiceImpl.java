@@ -63,7 +63,7 @@ public class PedidoServiceImpl implements IPedidoService {
     // ==================== MÉTODO AUXILIAR PARA BUSCAR ARTÍCULOS ====================
     private Articulo buscarArticuloPorId(Long idArticulo) {
         // Primero intentar buscar en manufacturados
-        Optional<ArticuloManufacturado> manufacturado = articuloRepository.findById(idArticulo);
+        Optional<Articulo> manufacturado = articuloRepository.findById(idArticulo);
         if (manufacturado.isPresent()) {
             return manufacturado.get();
         }
