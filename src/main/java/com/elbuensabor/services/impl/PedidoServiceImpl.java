@@ -1,6 +1,7 @@
 package com.elbuensabor.services.impl;
 
 import com.elbuensabor.dto.request.PedidoRequestDTO;
+import com.elbuensabor.dto.response.FacturaResponseDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
 import com.elbuensabor.entities.*;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
@@ -10,6 +11,9 @@ import com.elbuensabor.services.mapper.PedidoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.elbuensabor.services.IFacturaService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -19,6 +23,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class PedidoServiceImpl implements IPedidoService {
+    private static final Logger logger = LoggerFactory.getLogger(PedidoServiceImpl.class);
+
+    @Autowired
+    private IFacturaService facturaService;
 
     @Autowired
     private IPedidoRepository pedidoRepository;
@@ -30,7 +38,7 @@ public class PedidoServiceImpl implements IPedidoService {
     private IDomicilioRepository domicilioRepository;
 
     @Autowired
-    private IArticuloManufacturadoRepository articuloRepository;
+    private IArticuloRepository articuloRepository;
 
     @Autowired
     private IArticuloInsumoRepository articuloInsumoRepository;
@@ -55,7 +63,7 @@ public class PedidoServiceImpl implements IPedidoService {
     // ==================== MÉTODO AUXILIAR PARA BUSCAR ARTÍCULOS ====================
     private Articulo buscarArticuloPorId(Long idArticulo) {
         // Primero intentar buscar en manufacturados
-        Optional<ArticuloManufacturado> manufacturado = articuloRepository.findById(idArticulo);
+        Optional<Articulo> manufacturado = articuloRepository.findById(idArticulo);
         if (manufacturado.isPresent()) {
             return manufacturado.get();
         }
@@ -110,15 +118,54 @@ public class PedidoServiceImpl implements IPedidoService {
         pedido.setObservaciones(pedidoRequest.getObservaciones());
         System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
 
-        // 4. Asignar domicilio si es delivery
+        // ✅ NUEVO: Asignar observaciones generales
+        pedido.setObservaciones(pedidoRequest.getObservaciones());
+
+        // 4. Asignar domicilio según tipo de envío
 
         if (pedidoRequest.getTipoEnvio().equals("DELIVERY")) {
-            if (pedidoRequest.getIdDomicilio() == null) {
-                throw new IllegalArgumentException("Domicilio requerido para delivery");
+            // ✅ DELIVERY: Dirección del cliente
+            Domicilio domicilioCliente = null;
+
+            if (pedidoRequest.getIdDomicilio() != null) {
+                // Si se especifica domicilio en el request, usarlo
+                domicilioCliente = domicilioRepository.findById(pedidoRequest.getIdDomicilio())
+                        .orElseThrow(() -> new ResourceNotFoundException("Domicilio especificado no encontrado"));
+
+                // Verificar que el domicilio pertenezca al cliente
+                if (domicilioCliente.getCliente() == null ||
+                        !domicilioCliente.getCliente().getIdCliente().equals(pedidoRequest.getIdCliente())) {
+                    throw new IllegalArgumentException("El domicilio especificado no pertenece al cliente");
+                }
+            } else {
+                // Si no se especifica, buscar el primer domicilio del cliente
+                List<Domicilio> domiciliosCliente = domicilioRepository.findByClienteIdCliente(pedidoRequest.getIdCliente());
+
+                if (domiciliosCliente.isEmpty()) {
+                    throw new IllegalArgumentException("El cliente no tiene domicilios registrados para delivery. Debe registrar una dirección primero.");
+                }
+
+                // Usar el primer domicilio del cliente
+                domicilioCliente = domiciliosCliente.get(0);
+                logger.info("✅ DELIVERY: Usando domicilio automático ID: {} ({}) para cliente: {}",
+                        domicilioCliente.getIdDomicilio(),
+                        domicilioCliente.getCalle() + " " + domicilioCliente.getNumero(),
+                        cliente.getNombre() + " " + cliente.getApellido());
             }
-            Domicilio domicilio = domicilioRepository.findById(pedidoRequest.getIdDomicilio())
-                    .orElseThrow(() -> new ResourceNotFoundException("Domicilio no encontrado"));
-            pedido.setDomicilio(domicilio);
+
+            pedido.setDomicilio(domicilioCliente);
+
+        } else if (pedidoRequest.getTipoEnvio().equals("TAKE_AWAY")) {
+            // ✅ TAKE_AWAY: Dirección de la sucursal
+            if (sucursal.getDomicilio() != null) {
+                pedido.setDomicilio(sucursal.getDomicilio());
+                logger.info("✅ TAKE_AWAY: Usando dirección de sucursal ID: {} ({})",
+                        sucursal.getDomicilio().getIdDomicilio(),
+                        sucursal.getDomicilio().getCalle() + " " + sucursal.getDomicilio().getNumero());
+            } else {
+                logger.error("❌ ERROR: Sucursal ID: {} no tiene domicilio configurado", sucursal.getIdSucursalEmpresa());
+                throw new IllegalStateException("La sucursal debe tener un domicilio configurado");
+            }
         }
 
         // 5. Calcular totales
@@ -146,6 +193,9 @@ public class PedidoServiceImpl implements IPedidoService {
                     detalle.setCantidad(detalleRequest.getCantidad());
                     detalle.setSubtotal(articulo.getPrecioVenta() * detalleRequest.getCantidad());
 
+                    // ✅ NUEVO: Asignar observaciones del producto
+                    detalle.setObservaciones(detalleRequest.getObservaciones());
+
                     System.out.println("📦 Detalle creado: " + articulo.getDenominacion() +
                             " (" + (articulo instanceof ArticuloManufacturado ? "Manufacturado" : "Insumo") + ")" +
                             " x " + detalleRequest.getCantidad() + " = $" + detalle.getSubtotal());
@@ -162,15 +212,34 @@ public class PedidoServiceImpl implements IPedidoService {
         // 10. Guardar con detalles
         Pedido pedidoFinal = pedidoRepository.save(pedidoGuardado);
 
-        // 11. Mapear a DTO
+        // 🆕 11. CREAR FACTURA AUTOMÁTICAMENTE
+        try {
+            facturaService.crearFacturaFromPedido(pedidoFinal);
+            logger.info("✅ Factura creada automáticamente para pedido ID: {}", pedidoFinal.getIdPedido());
+        } catch (Exception e) {
+            logger.error("❌ Error creando factura para pedido ID: {}", pedidoFinal.getIdPedido(), e);
+            // La factura se puede crear después manualmente, no falla el pedido
+        }
+
+        // 12. Mapear a DTO (código existente)
         PedidoResponseDTO response = pedidoMapper.toDTO(pedidoFinal);
         System.out.println("📤 Observaciones en response: '" + response.getObservaciones() + "'");
 
-        // 12. Calcular campos faltantes
+        // 13. Calcular campos faltantes (código existente)
         response.setStockSuficiente(validarStockDisponible(pedidoRequest));
         response.setTiempoEstimadoTotal(calcularTiempoEstimado(pedidoRequest));
 
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public FacturaResponseDTO getFacturaPedido(Long pedidoId) {
+        // Verificar que el pedido existe
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
+
+        // Buscar factura del pedido
+        return facturaService.findByPedidoId(pedidoId);
     }
 
     @Override

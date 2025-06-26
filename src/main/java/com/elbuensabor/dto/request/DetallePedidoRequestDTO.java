@@ -1,6 +1,8 @@
 package com.elbuensabor.dto.request;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,10 +12,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class DetallePedidoRequestDTO {
 
-    @NotNull(message = "El artículo es obligatorio")
+    @NotNull(message = "El ID del artículo es obligatorio")
     private Long idArticulo;
 
     @NotNull(message = "La cantidad es obligatoria")
     @Min(value = 1, message = "La cantidad debe ser mayor a 0")
     private Integer cantidad;
+
+    // ✅ NUEVO: Observaciones específicas del producto
+    @Size(max = 200, message = "Las observaciones del producto no pueden exceder 200 caracteres")
+    private String observaciones;
 }

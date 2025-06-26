@@ -11,3 +11,4 @@ public class HorarioStatusResponseDTO {
     private boolean abierto;
     private String mensaje;
 }
+

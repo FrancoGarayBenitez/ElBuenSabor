@@ -19,6 +19,9 @@ public class PedidoResponseDTO {
     private String estado;
     private String tipoEnvio;
 
+    // ✅ NUEVO: Observaciones generales del pedido
+    private String observaciones;
+
     // Información del cliente
     private Long idCliente;
     private String nombreCliente;
@@ -34,6 +37,4 @@ public class PedidoResponseDTO {
     // Información adicional
     private Integer tiempoEstimadoTotal; // en minutos
     private Boolean stockSuficiente;
-
-    private String observaciones;
 }

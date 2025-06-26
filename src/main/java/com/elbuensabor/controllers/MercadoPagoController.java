@@ -6,6 +6,7 @@ import com.elbuensabor.dto.response.MercadoPagoPaymentResponseDTO;
 import com.elbuensabor.services.IMercadoPagoService;
 import com.mercadopago.MercadoPagoConfig;
 import com.mercadopago.client.preference.PreferenceClient;
+import com.mercadopago.client.preference.PreferencePayerRequest;
 import com.mercadopago.client.preference.PreferenceRequest;
 import com.mercadopago.client.preference.PreferenceItemRequest;
 import com.mercadopago.resources.preference.Preference;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/mercadopago")
@@ -152,4 +154,83 @@ public class MercadoPagoController {
                     .body("Error procesando reembolso");
         }
     }
+
+    @PostMapping("/sandbox-test")
+    public ResponseEntity<Map<String, Object>> crearPreferenciaSandboxTest() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            logger.info("=== CREANDO PREFERENCIA TEST PARA SANDBOX ===");
+
+            String token = mercadoPagoService.getAccessToken();
+            logger.info("Token configurado: {}...", token.substring(0, Math.min(15, token.length())));
+
+            // Configurar MercadoPago
+            MercadoPagoConfig.setAccessToken(token);
+
+            // Crear el cliente
+            PreferenceClient client = new PreferenceClient();
+
+            // ✅ ITEM SIMPLIFICADO
+            PreferenceItemRequest item = PreferenceItemRequest.builder()
+                    .title("Test Sandbox El Buen Sabor")
+                    .quantity(1)
+                    .unitPrice(new java.math.BigDecimal("100.00"))
+                    .currencyId("ARS")
+                    .description("Prueba sandbox sin URLs problemáticas")
+                    .build();
+
+            // ✅ PAYER SIMPLIFICADO
+            PreferencePayerRequest payer = PreferencePayerRequest.builder()
+                    .name("Test")
+                    .surname("Sandbox")
+                    .email("test@sandbox.com")
+                    .build();
+
+            // ✅ REQUEST ULTRA-SIMPLIFICADO - Sin URLs problemáticas
+            PreferenceRequest request = PreferenceRequest.builder()
+                    .items(List.of(item))
+                    .payer(payer)
+                    .externalReference("SANDBOX_TEST_" + System.currentTimeMillis())
+                    .build();
+
+            // ❌ NO agregamos:
+            // - .notificationUrl()
+            // - .backUrls()
+            // - .autoReturn()
+
+            logger.info("Enviando request sandbox sin URLs...");
+
+            // Intentar crear preferencia
+            Preference preference = client.create(request);
+
+            logger.info("✅ ¡PREFERENCIA SANDBOX CREADA!");
+
+            result.put("status", "SUCCESS ✅");
+            result.put("preferenceId", preference.getId());
+            result.put("sandboxLink", preference.getSandboxInitPoint());
+            result.put("productionLink", preference.getInitPoint());
+            result.put("message", "¡Preferencia sandbox creada exitosamente!");
+            result.put("instructions", "Usa el sandboxLink para probar el pago");
+            result.put("testCard", Map.of(
+                    "number", "4509 9535 6623 3704",
+                    "cvv", "123",
+                    "expiry", "11/25",
+                    "name", "APRO"
+            ));
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            logger.error("❌ Error en test sandbox: {}", e.getMessage(), e);
+
+            result.put("status", "ERROR ❌");
+            result.put("error", e.getMessage());
+            result.put("class", e.getClass().getSimpleName());
+            result.put("suggestion", "Verificar credenciales de sandbox y configuración");
+
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
 }
