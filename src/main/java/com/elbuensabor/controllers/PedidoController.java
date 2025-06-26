@@ -23,6 +23,57 @@ public class PedidoController {
         this.pedidoService = pedidoService;
     }
 
+    // ==================== CREAR PEDIDO ====================
+    @PostMapping
+    public ResponseEntity<PedidoResponseDTO> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+        PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
+        return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
+    }
+
+    // ==================== OBTENER PEDIDOS - AL FINAL ====================
+    @GetMapping
+    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
+        List<PedidoResponseDTO> pedidos = pedidoService.findAll();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
+        PedidoResponseDTO pedido = pedidoService.findById(id);
+        return ResponseEntity.ok(pedido);
+    }
+
+    // ==================== OPERACIONES DE ESTADO ====================
+    @PutMapping("/{id}/confirmar")
+    public ResponseEntity<PedidoResponseDTO> confirmarPedido(@PathVariable Long id) {
+        PedidoResponseDTO pedidoConfirmado = pedidoService.confirmarPedido(id);
+        return ResponseEntity.ok(pedidoConfirmado);
+    }
+
+    @PutMapping("/{id}/preparacion")
+    public ResponseEntity<PedidoResponseDTO> marcarEnPreparacion(@PathVariable Long id) {
+        PedidoResponseDTO pedido = pedidoService.marcarEnPreparacion(id);
+        return ResponseEntity.ok(pedido);
+    }
+
+    @PutMapping("/{id}/listo")
+    public ResponseEntity<PedidoResponseDTO> marcarListo(@PathVariable Long id) {
+        PedidoResponseDTO pedido = pedidoService.marcarListo(id);
+        return ResponseEntity.ok(pedido);
+    }
+
+    @PutMapping("/{id}/entregado")
+    public ResponseEntity<PedidoResponseDTO> marcarEntregado(@PathVariable Long id) {
+        PedidoResponseDTO pedido = pedidoService.marcarEntregado(id);
+        return ResponseEntity.ok(pedido);
+    }
+
+    @PutMapping("/{id}/cancelar")
+    public ResponseEntity<PedidoResponseDTO> cancelarPedido(@PathVariable Long id) {
+        PedidoResponseDTO pedido = pedidoService.cancelarPedido(id);
+        return ResponseEntity.ok(pedido);
+    }
+
     // ==================== VALIDACIONES PREVIAS - PRIMERO ====================
     @PostMapping("/validar")
     public ResponseEntity<Boolean> validarPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
@@ -68,57 +119,7 @@ public class PedidoController {
         return ResponseEntity.ok(pedidos);
     }
 
-    // ==================== OPERACIONES DE ESTADO ====================
-    @PutMapping("/{id}/confirmar")
-    public ResponseEntity<PedidoResponseDTO> confirmarPedido(@PathVariable Long id) {
-        PedidoResponseDTO pedidoConfirmado = pedidoService.confirmarPedido(id);
-        return ResponseEntity.ok(pedidoConfirmado);
-    }
-
-    @PutMapping("/{id}/preparacion")
-    public ResponseEntity<PedidoResponseDTO> marcarEnPreparacion(@PathVariable Long id) {
-        PedidoResponseDTO pedido = pedidoService.marcarEnPreparacion(id);
-        return ResponseEntity.ok(pedido);
-    }
-
-    @PutMapping("/{id}/listo")
-    public ResponseEntity<PedidoResponseDTO> marcarListo(@PathVariable Long id) {
-        PedidoResponseDTO pedido = pedidoService.marcarListo(id);
-        return ResponseEntity.ok(pedido);
-    }
-
-    @PutMapping("/{id}/entregado")
-    public ResponseEntity<PedidoResponseDTO> marcarEntregado(@PathVariable Long id) {
-        PedidoResponseDTO pedido = pedidoService.marcarEntregado(id);
-        return ResponseEntity.ok(pedido);
-    }
-
-    @PutMapping("/{id}/cancelar")
-    public ResponseEntity<PedidoResponseDTO> cancelarPedido(@PathVariable Long id) {
-        PedidoResponseDTO pedido = pedidoService.cancelarPedido(id);
-        return ResponseEntity.ok(pedido);
-    }
-
-    // ==================== CREAR PEDIDO ====================
-    @PostMapping
-    public ResponseEntity<PedidoResponseDTO> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
-        PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
-        return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
-    }
-
-    // ==================== OBTENER PEDIDOS - AL FINAL ====================
-    @GetMapping
-    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findAll();
-        return ResponseEntity.ok(pedidos);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
-        PedidoResponseDTO pedido = pedidoService.findById(id);
-        return ResponseEntity.ok(pedido);
-    }
-
+    // ==================== FACTURA ====================
     // Agregar método en la sección de endpoints específicos (ANTES de /{id})
     @GetMapping("/{id}/factura")
     public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long id) {
