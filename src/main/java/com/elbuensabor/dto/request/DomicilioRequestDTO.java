@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class DomicilioDTO {
+public class DomicilioRequestDTO {
     @NotBlank(message = "La calle es obligatoria")
     private String calle;
 
@@ -23,4 +23,7 @@ public class DomicilioDTO {
 
     @NotBlank(message = "La localidad es obligatoria")
     private String localidad;
+
+    @NotNull(message = "Debe especificar si es domicilio principal")
+    private Boolean esPrincipal = false;
 }

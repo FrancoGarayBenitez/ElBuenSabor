@@ -13,5 +13,6 @@ public class DomicilioResponseDTO {
     private Integer numero;
     private Integer cp;
     private String localidad;
+    private Boolean esPrincipal;
     private String direccionCompleta; // calculada
 }
