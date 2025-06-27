@@ -16,10 +16,11 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
 
     /**
      * Convierte entidad Cliente a DTO de respuesta
-     * Incluye el email del usuario asociado
+     * Incluye el email del usuario asociado y domicilios con esPrincipal
      */
     @Override
     @Mapping(source = "usuario.email", target = "email")
+    @Mapping(source = "domicilios", target = "domicilios", qualifiedByName = "toResponseDTO")
     ClienteResponseDTO toDTO(Cliente entity);
 
     /**
@@ -32,6 +33,7 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
     @Mapping(target = "usuario", ignore = true)  // Usuario/Auth0 se maneja por separado
     @Mapping(target = "pedidos", ignore = true)  // Relación se maneja por separado
     @Mapping(target = "imagen", ignore = true)   // Se maneja manualmente si está presente
+    @Mapping(target = "domicilios", ignore = true) // Los domicilios se manejan por separado ahora
     Cliente toEntity(ClienteResponseDTO dto);
 
     /**
@@ -56,5 +58,6 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
     @Mapping(target = "usuario", ignore = true)      // Usuario/Auth0 se actualiza por separado
     @Mapping(target = "pedidos", ignore = true)      // Historial de pedidos se mantiene
     @Mapping(target = "imagen", ignore = true)       // Imagen se maneja por separado
+    @Mapping(target = "domicilios", ignore = true)   // Domicilios se manejan por separado
     void updateEntityFromDTO(ClienteResponseDTO dto, @MappingTarget Cliente entity);
 }
