@@ -130,19 +130,36 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
     private void calcularTotalesFactura(Factura factura, Pedido pedido) {
         Double subtotal = pedido.getTotal();
         Double gastosEnvio = 0.0;
+        Double descuento = 0.0;
 
+        // 🚚 DELIVERY: Agregar gastos de envío
         if (pedido.getTipoEnvio() == TipoEnvio.DELIVERY) {
             gastosEnvio = 200.0;
+            // Para DELIVERY: el total del pedido ya incluye gastos, los separamos
             subtotal = subtotal - gastosEnvio;
         }
 
-        Double descuento = 0.0;
+        // 🏪 TAKE_AWAY: Aplicar descuento del 10%
+        else if (pedido.getTipoEnvio() == TipoEnvio.TAKE_AWAY) {
+            descuento = subtotal * 0.10; // 10% de descuento
+            logger.info("✅ Descuento TAKE_AWAY aplicado: {}% sobre ${} = ${}",
+                    10, subtotal, descuento);
+        }
+
+        // Calcular total final
         Double totalVenta = subtotal - descuento + gastosEnvio;
 
+        // Asignar valores a la factura
         factura.setSubTotal(subtotal);
         factura.setDescuento(descuento);
         factura.setGastosEnvio(gastosEnvio);
         factura.setTotalVenta(totalVenta);
+
+        logger.info("💰 TOTALES CALCULADOS:");
+        logger.info("   Subtotal: ${}", subtotal);
+        logger.info("   Descuento: ${}", descuento);
+        logger.info("   Gastos Envío: ${}", gastosEnvio);
+        logger.info("   TOTAL: ${}", totalVenta);
     }
 
     // ✅ MÉTODO ACTUALIZADO para mapear datos completos del pedido

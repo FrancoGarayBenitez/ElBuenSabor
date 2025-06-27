@@ -79,6 +79,30 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
             PdfFont boldFont = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
             PdfFont regularFont = PdfFontFactory.createFont(StandardFonts.HELVETICA);
 
+            // 🐛 ===== AQUÍ VAN LOS LOGS DE DEBUG =====
+            logger.info("🔍 =================================");
+            logger.info("🔍 DEBUG COMPLETO FACTURA {}", facturaDTO.getIdFactura());
+            logger.info("🔍 =================================");
+            logger.info("🔍 SubTotal: {}", facturaDTO.getSubTotal());
+            logger.info("🔍 Descuento: {}", facturaDTO.getDescuento());
+            logger.info("🔍 GastosEnvio: {}", facturaDTO.getGastosEnvio());
+            logger.info("🔍 TotalVenta: {}", facturaDTO.getTotalVenta());
+            logger.info("🔍 TipoEnvio: {}", facturaDTO.getTipoEnvio());
+            logger.info("🔍 ObservacionesPedido: '{}'", facturaDTO.getObservacionesPedido());
+            logger.info("🔍 DetallesPedido count: {}", facturaDTO.getDetallesPedido() != null ? facturaDTO.getDetallesPedido().size() : "NULL");
+
+            if (facturaDTO.getDetallesPedido() != null) {
+                for (DetallePedidoResponseDTO detalle : facturaDTO.getDetallesPedido()) {
+                    logger.info("🔍   Detalle: {} x{} = {} (obs: '{}')",
+                            detalle.getDenominacionArticulo(),
+                            detalle.getCantidad(),
+                            detalle.getSubtotal(),
+                            detalle.getObservaciones());
+                }
+            }
+            logger.info("🔍 =================================");
+            // ===== FIN LOGS DE DEBUG =====
+
             // Construir el documento
             agregarEncabezado(document, boldFont, regularFont);
             agregarSeparador(document);
@@ -502,6 +526,18 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
     }
 
     private void agregarTotales(Document document, FacturaResponseDTO factura, PdfFont boldFont, PdfFont regularFont) {
+        // ✅ USAR DIRECTAMENTE LOS DATOS DEL BACKEND (ya calculados correctamente)
+        double subtotal = factura.getSubTotal();
+        double descuento = factura.getDescuento() != null ? factura.getDescuento() : 0.0;
+        double gastosEnvio = factura.getGastosEnvio() != null ? factura.getGastosEnvio() : 0.0;
+        double totalFinal = factura.getTotalVenta();
+
+        logger.info("💰 TOTALES EN PDF:");
+        logger.info("   Subtotal: {}", subtotal);
+        logger.info("   Descuento: {}", descuento);
+        logger.info("   Gastos Envío: {}", gastosEnvio);
+        logger.info("   Total: {}", totalFinal);
+
         // Contenedor para totales con sombra simulada
         Table containerTable = new Table(1)
                 .setWidth(UnitValue.createPercentValue(60))
@@ -528,18 +564,20 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
 
         // Subtotal
         totalesTable.addCell(crearCeldaTotalesMejorada("Subtotal:", regularFont, false, false));
-        totalesTable.addCell(crearCeldaTotalesMejorada(CURRENCY_FORMAT.format(factura.getSubTotal()), regularFont, false, true));
+        totalesTable.addCell(crearCeldaTotalesMejorada(CURRENCY_FORMAT.format(subtotal), regularFont, false, true));
 
-        // Descuento (si existe)
-        if (factura.getDescuento() != null && factura.getDescuento() > 0) {
-            totalesTable.addCell(crearCeldaTotalesMejorada("Descuento:", regularFont, false, false));
-            totalesTable.addCell(crearCeldaTotalesMejorada("-" + CURRENCY_FORMAT.format(factura.getDescuento()), regularFont, false, true));
+        // Descuento (mostrar si existe)
+        if (descuento > 0) {
+            String labelDescuento = "TAKE_AWAY".equals(factura.getTipoEnvio()) ?
+                    "Descuento TAKE_AWAY (10%):" : "Descuento:";
+            totalesTable.addCell(crearCeldaTotalesMejorada(labelDescuento, regularFont, false, false));
+            totalesTable.addCell(crearCeldaTotalesMejorada("-" + CURRENCY_FORMAT.format(descuento), regularFont, false, true));
         }
 
         // Gastos de envío (si existen)
-        if (factura.getGastosEnvio() != null && factura.getGastosEnvio() > 0) {
+        if (gastosEnvio > 0) {
             totalesTable.addCell(crearCeldaTotalesMejorada("Gastos de Envío:", regularFont, false, false));
-            totalesTable.addCell(crearCeldaTotalesMejorada(CURRENCY_FORMAT.format(factura.getGastosEnvio()), regularFont, false, true));
+            totalesTable.addCell(crearCeldaTotalesMejorada(CURRENCY_FORMAT.format(gastosEnvio), regularFont, false, true));
         }
 
         // Línea separadora
@@ -553,7 +591,7 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
 
         // Total final destacado
         totalesTable.addCell(crearCeldaTotalesMejorada("TOTAL:", boldFont, true, false));
-        totalesTable.addCell(crearCeldaTotalesMejorada(CURRENCY_FORMAT.format(factura.getTotalVenta()), boldFont, true, true));
+        totalesTable.addCell(crearCeldaTotalesMejorada(CURRENCY_FORMAT.format(totalFinal), boldFont, true, true));
 
         containerCell.add(totalesTable);
         containerTable.addCell(containerCell);
