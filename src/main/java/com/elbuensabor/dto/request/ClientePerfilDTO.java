@@ -1,6 +1,6 @@
 package com.elbuensabor.dto.request;
 
-import jakarta.validation.Valid;
+import com.elbuensabor.dto.request.ImagenDTO;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,13 +9,13 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 /**
- * DTO para registro de clientes con Auth0
- * El usuario ya debe estar autenticado en Auth0 antes de usar este DTO
+ * DTO específico para editar información personal del perfil
+ * No incluye domicilios (se manejan por separado)
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClienteRegisterDTO {
+public class ClientePerfilDTO {
 
     @NotBlank(message = "El nombre es obligatorio")
     @Size(min = 2, max = 50, message = "El nombre debe tener entre 2 y 50 caracteres")
@@ -29,19 +29,12 @@ public class ClienteRegisterDTO {
     @Pattern(regexp = "^[0-9+\\-\\s()]{10,20}$", message = "Formato de teléfono inválido")
     private String telefono;
 
-    @NotBlank(message = "El email es obligatorio")
-    @Email(message = "El email debe ser válido")
-    @Size(max = 100, message = "El email no puede exceder 100 caracteres")
-    private String email;
-
     @NotNull(message = "La fecha de nacimiento es obligatoria")
     @Past(message = "La fecha de nacimiento debe ser en el pasado")
     private LocalDate fechaNacimiento;
 
-    @Valid
-    @NotNull(message = "El domicilio es obligatorio")
-    private DomicilioRequestDTO domicilio;
+    // Email se mantiene en Usuario, no se edita desde aquí
+    // Los domicilios se manejan con endpoints separados
 
-    @Valid
     private ImagenDTO imagen; // Opcional
 }
