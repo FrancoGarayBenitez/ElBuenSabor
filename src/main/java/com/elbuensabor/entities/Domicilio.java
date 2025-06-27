@@ -32,6 +32,9 @@ public class Domicilio {
     @Column(nullable = false)
     private String localidad;
 
+    @Column(name = "es_principal", nullable = false)
+    private Boolean esPrincipal = false;
+
     @OneToOne(mappedBy = "domicilio")
     private SucursalEmpresa sucursalEmpresa;
 

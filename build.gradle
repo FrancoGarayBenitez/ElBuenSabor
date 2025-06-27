@@ -44,6 +44,9 @@ dependencies {
 	// Mercado Pago SDK
 	implementation 'com.mercadopago:sdk-java:2.1.28'
 
+	// Enviar correo
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.mysql:mysql-connector-j'
