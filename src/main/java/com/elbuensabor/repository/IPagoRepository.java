@@ -25,7 +25,7 @@ public interface IPagoRepository extends JpaRepository<Pago, Long> {
     List<Pago> findByFormaPago(FormaPago formaPago);
 
     // Buscar pago por payment ID de Mercado Pago
-    @Query("SELECT p FROM Pago p WHERE p.datosMercadoPago.paymentId = :paymentId")
+    @Query("SELECT p FROM Pago p WHERE p.datosMercadoPago.paymentId = :paymentId AND p.datosMercadoPago.paymentId IS NOT NULL")
     Optional<Pago> findByMercadoPagoPaymentId(@Param("paymentId") Long paymentId);
 
     // Buscar pagos por rango de fechas
@@ -42,4 +42,7 @@ public interface IPagoRepository extends JpaRepository<Pago, Long> {
     // Buscar pagos por cliente (a través de pedido -> factura)
     @Query("SELECT p FROM Pago p WHERE p.factura.pedido.cliente.idCliente = :clienteId")
     List<Pago> findByClienteId(@Param("clienteId") Long clienteId);
+
+    @Query("SELECT p FROM Pago p WHERE p.mercadoPagoPreferenceId = :preferenceId")
+    Optional<Pago> findByMercadoPagoPreferenceId(@Param("preferenceId") String preferenceId);
 }

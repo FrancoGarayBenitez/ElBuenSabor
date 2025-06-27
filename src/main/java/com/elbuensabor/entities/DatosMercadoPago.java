@@ -1,4 +1,3 @@
-
 package com.elbuensabor.entities;
 
 import jakarta.persistence.*;
@@ -19,10 +18,12 @@ public class DatosMercadoPago {
     @Column(name = "id_datos_mp")
     private Long idMercadoPago;
 
-    @Column(name = "payment_id", nullable = false, unique = true)
+    // ✅ CAMBIO CRÍTICO: Permitir NULL inicialmente
+    @Column(name = "payment_id", nullable = true, unique = true)
     private Long paymentId;
 
-    @Column(nullable = false)
+    // ✅ CAMBIO: Permitir NULL inicialmente
+    @Column(nullable = true)
     private String status;
 
     @Column(name = "status_detail")

@@ -64,4 +64,12 @@ public interface IDomicilioRepository extends JpaRepository<Domicilio, Long> {
      */
     @Query("SELECT COUNT(d) > 0 FROM Domicilio d WHERE d.cliente.idCliente = :clienteId AND d.esPrincipal = true AND d.idDomicilio != :excludeId")
     boolean existsOtherPrincipalForCliente(@Param("clienteId") Long clienteId, @Param("excludeId") Long excludeId);
+
+    // ✅ NUEVO: Buscar domicilios por cliente
+    List<Domicilio> findByClienteIdCliente(Long clienteId);
+
+    // ✅ OPCIONAL: Buscar domicilio de sucursal (donde id_cliente es NULL)
+    List<Domicilio> findByClienteIsNull();
 }
+
+

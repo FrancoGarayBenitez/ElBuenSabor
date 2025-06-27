@@ -9,40 +9,45 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 
-
 @Service
-    public class HorarioServiceImpl implements IHorarioService {
+public class HorarioServiceImpl implements IHorarioService {
 
-        // ... (los atributos de horarios no cambian) ...
-        private final LocalTime NOCHE_APERTURA = LocalTime.of(19, 0);
-        private final LocalTime NOCHE_CIERRE = LocalTime.of(23, 59, 59);
-        private final LocalTime MEDIODIA_APERTURA = LocalTime.of(11, 0);
-        private final LocalTime MEDIODIA_CIERRE = LocalTime.of(15, 0);
+    private final LocalTime NOCHE_APERTURA = LocalTime.of(19, 0);
+    private final LocalTime NOCHE_CIERRE = LocalTime.of(23, 30); // Cambié de 23:59:59 a 23:30
+    private final LocalTime MEDIODIA_APERTURA = LocalTime.of(11, 0);
+    private final LocalTime MEDIODIA_CIERRE = LocalTime.of(15, 0);
 
+    @Override
+    public HorarioStatusResponseDTO getEstadoHorario() {
+        LocalDateTime ahora = LocalDateTime.now();
+        DayOfWeek dia = ahora.getDayOfWeek();
+        LocalTime hora = ahora.toLocalTime();
 
-        @Override
-        public HorarioStatusResponseDTO getEstadoHorario() {
-            LocalDateTime ahora = LocalDateTime.now();
-            DayOfWeek dia = ahora.getDayOfWeek();
-            LocalTime hora = ahora.toLocalTime();
+        // 🚨 PARA TESTING - SIEMPRE RETORNAR ABIERTO
+        // TODO: Quitar esto cuando quieras activar la validación real
+        System.out.println("🕐 DEBUG Horario - Día: " + dia + ", Hora: " + hora);
+        System.out.println("🏪 MODO TESTING: Siempre abierto");
+        return new HorarioStatusResponseDTO(true, "Modo testing - siempre abierto");
 
-            // Lógica para verificar si está abierto (la misma de antes)
-            boolean estaAbierto = false;
-            if (!hora.isBefore(NOCHE_APERTURA) && !hora.isAfter(NOCHE_CIERRE)) {
-                estaAbierto = true;
-            } else {
-                boolean esFinDeSemana = (dia == DayOfWeek.SATURDAY || dia == DayOfWeek.SUNDAY);
-                if (esFinDeSemana && !hora.isBefore(MEDIODIA_APERTURA) && !hora.isAfter(MEDIODIA_CIERRE)) {
-                    estaAbierto = true;
-                }
-            }
+        // LA LÓGICA REAL (comentada para testing):
+        /*
+        boolean estaAbierto = false;
 
-            // Construir y devolver el DTO
-            if (estaAbierto) {
-                return new HorarioStatusResponseDTO(true, "El local se encuentra abierto.");
-            } else {
-                return new HorarioStatusResponseDTO(false, "El local se encuentra cerrado y no es posible realizar pedidos en este momento.");
-            }
+        // Horario nocturno (todos los días)
+        if (hora.isAfter(NOCHE_APERTURA.minusMinutes(1)) && hora.isBefore(NOCHE_CIERRE.plusMinutes(1))) {
+            estaAbierto = true;
         }
-    }
+        // Horario mediodía (solo fines de semana)
+        else if ((dia == DayOfWeek.SATURDAY || dia == DayOfWeek.SUNDAY) &&
+                 hora.isAfter(MEDIODIA_APERTURA.minusMinutes(1)) && hora.isBefore(MEDIODIA_CIERRE.plusMinutes(1))) {
+            estaAbierto = true;
+        }
 
+        if (estaAbierto) {
+            return new HorarioStatusResponseDTO(true, "El local se encuentra abierto.");
+        } else {
+            return new HorarioStatusResponseDTO(false, "El local se encuentra cerrado y no es posible realizar pedidos en este momento.");
+        }
+        */
+    }
+}

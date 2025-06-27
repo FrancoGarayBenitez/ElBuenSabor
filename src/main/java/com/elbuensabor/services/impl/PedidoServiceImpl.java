@@ -1,6 +1,7 @@
 package com.elbuensabor.services.impl;
 
 import com.elbuensabor.dto.request.PedidoRequestDTO;
+import com.elbuensabor.dto.response.FacturaResponseDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
 import com.elbuensabor.entities.*;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
@@ -10,14 +11,22 @@ import com.elbuensabor.services.mapper.PedidoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.elbuensabor.services.IFacturaService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class PedidoServiceImpl implements IPedidoService {
+    private static final Logger logger = LoggerFactory.getLogger(PedidoServiceImpl.class);
+
+    @Autowired
+    private IFacturaService facturaService;
 
     @Autowired
     private IPedidoRepository pedidoRepository;
@@ -29,7 +38,7 @@ public class PedidoServiceImpl implements IPedidoService {
     private IDomicilioRepository domicilioRepository;
 
     @Autowired
-    private IArticuloManufacturadoRepository articuloRepository;
+    private IArticuloRepository articuloRepository;
 
     @Autowired
     private IArticuloInsumoRepository articuloInsumoRepository;
@@ -50,6 +59,22 @@ public class PedidoServiceImpl implements IPedidoService {
         response.setTiempoEstimadoTotal(calcularTiempoEstimadoDesdeDetalles(pedido.getDetalles()));
 
         return response;
+    }
+    // ==================== MÉTODO AUXILIAR PARA BUSCAR ARTÍCULOS ====================
+    private Articulo buscarArticuloPorId(Long idArticulo) {
+        // Primero intentar buscar en manufacturados
+        Optional<Articulo> manufacturado = articuloRepository.findById(idArticulo);
+        if (manufacturado.isPresent()) {
+            return manufacturado.get();
+        }
+
+        // Si no se encuentra, buscar en insumos
+        Optional<ArticuloInsumo> insumo = articuloInsumoRepository.findById(idArticulo);
+        if (insumo.isPresent()) {
+            return insumo.get();
+        }
+
+        throw new ResourceNotFoundException("Artículo con ID " + idArticulo + " no encontrado");
     }
 
     private Integer calcularTiempoEstimadoDesdeDetalles(List<DetallePedido> detalles) {
@@ -93,15 +118,54 @@ public class PedidoServiceImpl implements IPedidoService {
         pedido.setObservaciones(pedidoRequest.getObservaciones());
         System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
 
-        // 4. Asignar domicilio si es delivery
+        // ✅ NUEVO: Asignar observaciones generales
+        pedido.setObservaciones(pedidoRequest.getObservaciones());
+
+        // 4. Asignar domicilio según tipo de envío
 
         if (pedidoRequest.getTipoEnvio().equals("DELIVERY")) {
-            if (pedidoRequest.getIdDomicilio() == null) {
-                throw new IllegalArgumentException("Domicilio requerido para delivery");
+            // ✅ DELIVERY: Dirección del cliente
+            Domicilio domicilioCliente = null;
+
+            if (pedidoRequest.getIdDomicilio() != null) {
+                // Si se especifica domicilio en el request, usarlo
+                domicilioCliente = domicilioRepository.findById(pedidoRequest.getIdDomicilio())
+                        .orElseThrow(() -> new ResourceNotFoundException("Domicilio especificado no encontrado"));
+
+                // Verificar que el domicilio pertenezca al cliente
+                if (domicilioCliente.getCliente() == null ||
+                        !domicilioCliente.getCliente().getIdCliente().equals(pedidoRequest.getIdCliente())) {
+                    throw new IllegalArgumentException("El domicilio especificado no pertenece al cliente");
+                }
+            } else {
+                // Si no se especifica, buscar el primer domicilio del cliente
+                List<Domicilio> domiciliosCliente = domicilioRepository.findByClienteIdCliente(pedidoRequest.getIdCliente());
+
+                if (domiciliosCliente.isEmpty()) {
+                    throw new IllegalArgumentException("El cliente no tiene domicilios registrados para delivery. Debe registrar una dirección primero.");
+                }
+
+                // Usar el primer domicilio del cliente
+                domicilioCliente = domiciliosCliente.get(0);
+                logger.info("✅ DELIVERY: Usando domicilio automático ID: {} ({}) para cliente: {}",
+                        domicilioCliente.getIdDomicilio(),
+                        domicilioCliente.getCalle() + " " + domicilioCliente.getNumero(),
+                        cliente.getNombre() + " " + cliente.getApellido());
             }
-            Domicilio domicilio = domicilioRepository.findById(pedidoRequest.getIdDomicilio())
-                    .orElseThrow(() -> new ResourceNotFoundException("Domicilio no encontrado"));
-            pedido.setDomicilio(domicilio);
+
+            pedido.setDomicilio(domicilioCliente);
+
+        } else if (pedidoRequest.getTipoEnvio().equals("TAKE_AWAY")) {
+            // ✅ TAKE_AWAY: Dirección de la sucursal
+            if (sucursal.getDomicilio() != null) {
+                pedido.setDomicilio(sucursal.getDomicilio());
+                logger.info("✅ TAKE_AWAY: Usando dirección de sucursal ID: {} ({})",
+                        sucursal.getDomicilio().getIdDomicilio(),
+                        sucursal.getDomicilio().getCalle() + " " + sucursal.getDomicilio().getNumero());
+            } else {
+                logger.error("❌ ERROR: Sucursal ID: {} no tiene domicilio configurado", sucursal.getIdSucursalEmpresa());
+                throw new IllegalStateException("La sucursal debe tener un domicilio configurado");
+            }
         }
 
         // 5. Calcular totales
@@ -121,14 +185,20 @@ public class PedidoServiceImpl implements IPedidoService {
         // 8. Crear detalles del pedido
         List<DetallePedido> detalles = pedidoRequest.getDetalles().stream()
                 .map(detalleRequest -> {
-                    Articulo articulo = articuloRepository.findById(detalleRequest.getIdArticulo())
-                            .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+                    Articulo articulo = buscarArticuloPorId(detalleRequest.getIdArticulo()); // ← Cambiar esta línea
 
                     DetallePedido detalle = new DetallePedido();
                     detalle.setPedido(pedidoGuardado);
                     detalle.setArticulo(articulo);
                     detalle.setCantidad(detalleRequest.getCantidad());
                     detalle.setSubtotal(articulo.getPrecioVenta() * detalleRequest.getCantidad());
+
+                    // ✅ NUEVO: Asignar observaciones del producto
+                    detalle.setObservaciones(detalleRequest.getObservaciones());
+
+                    System.out.println("📦 Detalle creado: " + articulo.getDenominacion() +
+                            " (" + (articulo instanceof ArticuloManufacturado ? "Manufacturado" : "Insumo") + ")" +
+                            " x " + detalleRequest.getCantidad() + " = $" + detalle.getSubtotal());
 
                     return detalle;
                 })
@@ -142,15 +212,34 @@ public class PedidoServiceImpl implements IPedidoService {
         // 10. Guardar con detalles
         Pedido pedidoFinal = pedidoRepository.save(pedidoGuardado);
 
-        // 11. Mapear a DTO
+        // 🆕 11. CREAR FACTURA AUTOMÁTICAMENTE
+        try {
+            facturaService.crearFacturaFromPedido(pedidoFinal);
+            logger.info("✅ Factura creada automáticamente para pedido ID: {}", pedidoFinal.getIdPedido());
+        } catch (Exception e) {
+            logger.error("❌ Error creando factura para pedido ID: {}", pedidoFinal.getIdPedido(), e);
+            // La factura se puede crear después manualmente, no falla el pedido
+        }
+
+        // 12. Mapear a DTO (código existente)
         PedidoResponseDTO response = pedidoMapper.toDTO(pedidoFinal);
         System.out.println("📤 Observaciones en response: '" + response.getObservaciones() + "'");
 
-        // 12. Calcular campos faltantes
+        // 13. Calcular campos faltantes (código existente)
         response.setStockSuficiente(validarStockDisponible(pedidoRequest));
         response.setTiempoEstimadoTotal(calcularTiempoEstimado(pedidoRequest));
 
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public FacturaResponseDTO getFacturaPedido(Long pedidoId) {
+        // Verificar que el pedido existe
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
+
+        // Buscar factura del pedido
+        return facturaService.findByPedidoId(pedidoId);
     }
 
     @Override
@@ -268,8 +357,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public Boolean validarStockDisponible(PedidoRequestDTO pedidoRequest) {
         for (var detalle : pedidoRequest.getDetalles()) {
-            Articulo articulo = articuloRepository.findById(detalle.getIdArticulo())
-                    .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo());
 
             if (articulo instanceof ArticuloManufacturado) {
                 ArticuloManufacturado manufacturado = (ArticuloManufacturado) articulo;
@@ -278,59 +366,78 @@ public class PedidoServiceImpl implements IPedidoService {
                 for (var ingrediente : manufacturado.getDetalles()) {
                     double cantidadNecesaria = ingrediente.getCantidad() * detalle.getCantidad();
                     if (ingrediente.getArticuloInsumo().getStockActual() < cantidadNecesaria) {
+                        System.out.println("❌ Stock insuficiente - Ingrediente: " +
+                                ingrediente.getArticuloInsumo().getDenominacion() +
+                                ", Necesario: " + cantidadNecesaria +
+                                ", Disponible: " + ingrediente.getArticuloInsumo().getStockActual());
                         return false;
                     }
                 }
             } else if (articulo instanceof ArticuloInsumo) {
                 ArticuloInsumo insumo = (ArticuloInsumo) articulo;
                 if (insumo.getStockActual() < detalle.getCantidad()) {
+                    System.out.println("❌ Stock insuficiente - Insumo: " +
+                            insumo.getDenominacion() +
+                            ", Necesario: " + detalle.getCantidad() +
+                            ", Disponible: " + insumo.getStockActual());
                     return false;
                 }
             }
         }
+        System.out.println("✅ Stock disponible para todos los productos");
         return true;
     }
 
+    // ==================== MÉTODO CALCULAR TOTAL CORREGIDO ====================
     @Override
     @Transactional(readOnly = true)
     public Double calcularTotal(PedidoRequestDTO pedidoRequest) {
         double subtotal = 0;
 
         for (var detalle : pedidoRequest.getDetalles()) {
-            Articulo articulo = articuloRepository.findById(detalle.getIdArticulo())
-                    .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
-
+            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo());
             subtotal += articulo.getPrecioVenta() * detalle.getCantidad();
+            System.out.println("💰 Producto: " + articulo.getDenominacion() +
+                    " - Precio: $" + articulo.getPrecioVenta() +
+                    " x " + detalle.getCantidad() + " = $" + (articulo.getPrecioVenta() * detalle.getCantidad()));
         }
 
         // Agregar costo de envío si es delivery
         if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
             subtotal += 200; // Costo fijo de delivery
+            System.out.println("🚚 Costo delivery: $200");
         }
 
+        System.out.println("💰 Total calculado: $" + subtotal);
         return subtotal;
     }
-
+    // ==================== MÉTODO CALCULAR TIEMPO ESTIMADO CORREGIDO ====================
     @Override
     @Transactional(readOnly = true)
     public Integer calcularTiempoEstimado(PedidoRequestDTO pedidoRequest) {
         int tiempoMaximo = 0;
 
         for (var detalle : pedidoRequest.getDetalles()) {
-            Articulo articulo = articuloRepository.findById(detalle.getIdArticulo())
-                    .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo());
 
             if (articulo instanceof ArticuloManufacturado) {
                 ArticuloManufacturado manufacturado = (ArticuloManufacturado) articulo;
-                tiempoMaximo = Math.max(tiempoMaximo, manufacturado.getTiempoEstimadoEnMinutos());
+                if (manufacturado.getTiempoEstimadoEnMinutos() != null) {
+                    tiempoMaximo = Math.max(tiempoMaximo, manufacturado.getTiempoEstimadoEnMinutos());
+                    System.out.println("⏱️ Producto manufacturado: " + manufacturado.getDenominacion() +
+                            " - Tiempo: " + manufacturado.getTiempoEstimadoEnMinutos() + " min");
+                }
             }
+            // Los insumos no tienen tiempo de preparación, se entregan inmediatamente
         }
 
         // Agregar tiempo de delivery si corresponde
         if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
             tiempoMaximo += 15; // Tiempo estimado de entrega
+            System.out.println("🚚 Tiempo delivery agregado: +15 min");
         }
 
+        System.out.println("⏱️ Tiempo total estimado: " + tiempoMaximo + " min");
         return tiempoMaximo;
     }
 
@@ -381,8 +488,7 @@ public class PedidoServiceImpl implements IPedidoService {
         double totalCosto = 0;
 
         for (var detalle : pedidoRequest.getDetalles()) {
-            Articulo articulo = articuloRepository.findById(detalle.getIdArticulo())
-                    .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo()); // ← Cambiar esta línea
 
             if (articulo instanceof ArticuloManufacturado) {
                 ArticuloManufacturado manufacturado = (ArticuloManufacturado) articulo;
@@ -398,11 +504,9 @@ public class PedidoServiceImpl implements IPedidoService {
 
         return totalCosto;
     }
-
     private void actualizarStockIngredientes(PedidoRequestDTO pedidoRequest) {
         for (var detalle : pedidoRequest.getDetalles()) {
-            Articulo articulo = articuloRepository.findById(detalle.getIdArticulo())
-                    .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo()); // ← Cambiar esta línea
 
             if (articulo instanceof ArticuloManufacturado) {
                 ArticuloManufacturado manufacturado = (ArticuloManufacturado) articulo;
@@ -410,17 +514,24 @@ public class PedidoServiceImpl implements IPedidoService {
                 for (var ingrediente : manufacturado.getDetalles()) {
                     ArticuloInsumo insumo = ingrediente.getArticuloInsumo();
                     int cantidadARestar = (int) (ingrediente.getCantidad() * detalle.getCantidad());
+                    int stockAnterior = insumo.getStockActual();
                     insumo.setStockActual(insumo.getStockActual() - cantidadARestar);
                     articuloInsumoRepository.save(insumo);
+
+                    System.out.println("📉 Stock actualizado - " + insumo.getDenominacion() +
+                            ": " + stockAnterior + " -> " + insumo.getStockActual() + " (-" + cantidadARestar + ")");
                 }
             } else if (articulo instanceof ArticuloInsumo) {
                 ArticuloInsumo insumo = (ArticuloInsumo) articulo;
+                int stockAnterior = insumo.getStockActual();
                 insumo.setStockActual(insumo.getStockActual() - detalle.getCantidad());
                 articuloInsumoRepository.save(insumo);
+
+                System.out.println("📉 Stock actualizado - " + insumo.getDenominacion() +
+                        ": " + stockAnterior + " -> " + insumo.getStockActual() + " (-" + detalle.getCantidad() + ")");
             }
         }
     }
-
     private void actualizarStockDesdePedido(Pedido pedido) {
         for (var detalle : pedido.getDetalles()) {
             Articulo articulo = detalle.getArticulo();

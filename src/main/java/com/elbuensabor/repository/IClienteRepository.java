@@ -66,4 +66,6 @@ public interface IClienteRepository extends JpaRepository<Cliente, Long> {
      */
     @Query("SELECT c.idCliente FROM Cliente c JOIN c.usuario u WHERE u.auth0Id = :auth0Id")
     Optional<Long> findClienteIdByAuth0Id(@Param("auth0Id") String auth0Id);
+
+    Optional<Cliente> findByUsuarioIdUsuario(Long idUsuario);
 }

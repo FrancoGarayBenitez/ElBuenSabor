@@ -48,63 +48,227 @@ public class MercadoPagoServiceImpl implements IMercadoPagoService {
     private PaymentClient paymentClient;
 
     private void initializeClients() {
-        if (preferenceClient == null) {
+        try {
+            logger.info("=== INICIALIZANDO CLIENTES MERCADOPAGO ===");
+
+            if (accessToken == null || accessToken.trim().isEmpty()) {
+                throw new RuntimeException("Access token no configurado");
+            }
+
+            logger.info("Access Token: {}...", accessToken.substring(0, Math.min(15, accessToken.length())));
+            logger.info("Base URL: {}", baseUrl);
+
             MercadoPagoConfig.setAccessToken(accessToken);
+
             preferenceClient = new PreferenceClient();
             paymentClient = new PaymentClient();
+
+            logger.info("✅ Clientes inicializados correctamente");
+
+        } catch (Exception e) {
+            logger.error("❌ Error inicializando clientes: {}", e.getMessage(), e);
+            throw new RuntimeException("Error inicializando MercadoPago: " + e.getMessage(), e);
         }
     }
 
     @Override
     public MercadoPagoPreferenceResponseDTO crearPreferencia(MercadoPagoPreferenceDTO preferenceDTO) {
+        logger.info("=== INICIANDO CREACIÓN DE PREFERENCIA SANDBOX ===");
+
         try {
+            // Validaciones básicas ANTES de llamar a MP
+            validatePreferenceDTO(preferenceDTO);
+
+            // Inicializar clientes
             initializeClients();
 
-            // Convertir items
-            List<PreferenceItemRequest> items = preferenceDTO.getItems().stream()
-                    .map(this::convertToPreferenceItem)
-                    .collect(Collectors.toList());
+            // Log de datos de entrada
+            logger.info("DTO recibido: {}", preferenceDTO);
+            logger.info("Cantidad de items: {}", preferenceDTO.getItems().size());
+            logger.info("Email del payer: {}", preferenceDTO.getPayer().getEmail());
 
-            // Convertir payer
-            PreferencePayerRequest payer = convertToPreferencePayer(preferenceDTO.getPayer());
+            // Convertir items con validación individual
+            List<PreferenceItemRequest> items = convertItems(preferenceDTO.getItems());
+            logger.info("✅ Items convertidos exitosamente: {}", items.size());
 
-            // URLs de retorno
-            PreferenceBackUrlsRequest backUrls = PreferenceBackUrlsRequest.builder()
-                    .success(baseUrl + "/payment/success")
-                    .failure(baseUrl + "/payment/failure")
-                    .pending(baseUrl + "/payment/pending")
-                    .build();
+            // Convertir payer con validación
+            PreferencePayerRequest payer = convertPayer(preferenceDTO.getPayer());
+            logger.info("✅ Payer convertido: {} {} - {}", payer.getName(), payer.getSurname(), payer.getEmail());
 
-            // Crear request de preferencia
+            // ✅ REQUEST SIMPLIFICADO - Igual al que funciona en diagnostic controller
             PreferenceRequest request = PreferenceRequest.builder()
                     .items(items)
                     .payer(payer)
-                    .backUrls(backUrls)
-                    .autoReturn("approved")
-                    .notificationUrl(baseUrl + "/api/pagos/webhook/mercadopago")
-                    .externalReference(preferenceDTO.getExternalReference())
+                    .externalReference(preferenceDTO.getExternalReference() != null ?
+                            preferenceDTO.getExternalReference() : "PAGO_" + System.currentTimeMillis())
                     .build();
 
-            // Crear preferencia en MP
+            // ❌ NO CONFIGURAR para sandbox (evitar URLs problemáticas):
+            // - notificationUrl (causa problemas con localhost)
+            // - backUrls (causa problemas con localhost)
+            // - autoReturn (requiere backUrls válidas)
+
+            logger.info("=== ENVIANDO REQUEST SIMPLIFICADO A MERCADOPAGO ===");
+            logger.info("🔧 Modo: SANDBOX (sin notification URL ni back URLs)");
+
+            // LLAMADA CRÍTICA A MERCADOPAGO
             Preference preference = preferenceClient.create(request);
 
-            // Convertir respuesta
+            logger.info("🎉 ¡PREFERENCIA SANDBOX CREADA EXITOSAMENTE!");
+            logger.info("Preference ID: {}", preference.getId());
+            logger.info("Init Point: {}", preference.getInitPoint());
+            logger.info("Sandbox Init Point: {}", preference.getSandboxInitPoint());
+
             return convertToPreferenceResponse(preference);
 
-        } catch (MPException | MPApiException e) {
-            logger.error("Error creando preferencia de Mercado Pago: {}", e.getMessage(), e);
-            throw new RuntimeException("Error creando preferencia de pago", e);
+        } catch (MPApiException apiException) {
+            // ERROR ESPECÍFICO DE LA API DE MERCADOPAGO
+            logger.error("❌ ERROR DE API MERCADOPAGO ❌");
+            logger.error("Status Code: {}", apiException.getStatusCode());
+            logger.error("Message: {}", apiException.getMessage());
+
+            // Intentar obtener el contenido de la respuesta
+            String responseContent = "No disponible";
+            try {
+                if (apiException.getApiResponse() != null) {
+                    responseContent = apiException.getApiResponse().getContent();
+                    logger.error("API Response Content: {}", responseContent);
+                }
+            } catch (Exception e) {
+                logger.error("No se pudo obtener contenido de respuesta: {}", e.getMessage());
+            }
+
+            // Crear mensaje de error detallado para el frontend
+            String detailedMessage = String.format(
+                    "Error de Mercado Pago - Status: %d, Mensaje: %s, Respuesta: %s",
+                    apiException.getStatusCode(),
+                    apiException.getMessage(),
+                    responseContent
+            );
+
+            throw new RuntimeException(detailedMessage, apiException);
+
+        } catch (MPException mpException) {
+            // ERROR GENERAL DE MERCADOPAGO
+            logger.error("❌ ERROR GENERAL MERCADOPAGO ❌");
+            logger.error("Message: {}", mpException.getMessage());
+
+            String detailedMessage = String.format(
+                    "Error de MercadoPago SDK - Mensaje: %s",
+                    mpException.getMessage()
+            );
+
+            throw new RuntimeException(detailedMessage, mpException);
+
+        } catch (Exception e) {
+            // ERROR INESPERADO
+            logger.error("❌ ERROR INESPERADO ❌");
+            logger.error("Class: {}", e.getClass().getSimpleName());
+            logger.error("Message: {}", e.getMessage());
+            logger.error("Stack trace completo:", e);
+
+            String detailedMessage = String.format(
+                    "Error inesperado - Tipo: %s, Mensaje: %s",
+                    e.getClass().getSimpleName(),
+                    e.getMessage()
+            );
+
+            throw new RuntimeException(detailedMessage, e);
         }
     }
+
+    // MÉTODOS DE VALIDACIÓN Y CONVERSIÓN
+
+    private void validatePreferenceDTO(MercadoPagoPreferenceDTO dto) {
+        logger.info("Validando DTO...");
+
+        if (dto == null) {
+            throw new IllegalArgumentException("PreferenceDTO no puede ser null");
+        }
+
+        if (dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new IllegalArgumentException("Debe especificar al menos un item");
+        }
+
+        if (dto.getPayer() == null) {
+            throw new IllegalArgumentException("Información del payer es obligatoria");
+        }
+
+        if (dto.getPayer().getEmail() == null || !dto.getPayer().getEmail().contains("@")) {
+            throw new IllegalArgumentException("Email del payer es inválido: " + dto.getPayer().getEmail());
+        }
+
+        // Validar cada item
+        for (int i = 0; i < dto.getItems().size(); i++) {
+            MercadoPagoPreferenceDTO.ItemDTO item = dto.getItems().get(i);
+            if (item.getTitle() == null || item.getTitle().trim().isEmpty()) {
+                throw new IllegalArgumentException("Item " + i + ": título es obligatorio");
+            }
+            if (item.getQuantity() == null || item.getQuantity() <= 0) {
+                throw new IllegalArgumentException("Item " + i + ": cantidad debe ser mayor a 0");
+            }
+            if (item.getUnitPrice() == null || item.getUnitPrice() <= 0) {
+                throw new IllegalArgumentException("Item " + i + ": precio debe ser mayor a 0");
+            }
+        }
+
+        logger.info("✅ DTO validado correctamente");
+    }
+
+    private List<PreferenceItemRequest> convertItems(List<MercadoPagoPreferenceDTO.ItemDTO> items) {
+        return items.stream()
+                .map(this::convertToPreferenceItem)
+                .collect(Collectors.toList());
+    }
+
+    private PreferenceItemRequest convertToPreferenceItem(MercadoPagoPreferenceDTO.ItemDTO item) {
+        logger.info("Convirtiendo item: {} - Cantidad: {} - Precio: {}",
+                item.getTitle(), item.getQuantity(), item.getUnitPrice());
+
+        return PreferenceItemRequest.builder()
+                .title(item.getTitle())
+                .quantity(item.getQuantity())
+                .unitPrice(BigDecimal.valueOf(item.getUnitPrice()))
+                .currencyId(item.getCurrencyId() != null ? item.getCurrencyId() : "ARS")
+                .description(item.getDescription())
+                .build();
+    }
+
+    private PreferencePayerRequest convertPayer(MercadoPagoPreferenceDTO.PayerDTO payer) {
+        logger.info("Convirtiendo payer: {} {} - {}", payer.getName(), payer.getSurname(), payer.getEmail());
+
+        return PreferencePayerRequest.builder()
+                .name(payer.getName())
+                .surname(payer.getSurname())
+                .email(payer.getEmail())
+                .build();
+    }
+
+    private PreferenceBackUrlsRequest createBackUrls() {
+        String successUrl = baseUrl + "/payment/success";
+        String failureUrl = baseUrl + "/payment/failure";
+        String pendingUrl = baseUrl + "/payment/pending";
+
+        logger.info("URLs de retorno:");
+        logger.info("- Success: {}", successUrl);
+        logger.info("- Failure: {}", failureUrl);
+        logger.info("- Pending: {}", pendingUrl);
+
+        return PreferenceBackUrlsRequest.builder()
+                .success(successUrl)
+                .failure(failureUrl)
+                .pending(pendingUrl)
+                .build();
+    }
+
+    // RESTO DE MÉTODOS (sin cambios significativos)
 
     @Override
     public MercadoPagoPaymentResponseDTO obtenerPago(Long paymentId) {
         try {
             initializeClients();
-
             Payment payment = paymentClient.get(paymentId);
             return convertToPaymentResponse(payment);
-
         } catch (MPException | MPApiException e) {
             logger.error("Error obteniendo pago de Mercado Pago: {}", e.getMessage(), e);
             throw new RuntimeException("Error obteniendo información del pago", e);
@@ -115,21 +279,12 @@ public class MercadoPagoServiceImpl implements IMercadoPagoService {
     public void procesarWebhook(String topic, String id) {
         try {
             logger.info("Procesando webhook - Topic: {}, ID: {}", topic, id);
-
             if ("payment".equals(topic)) {
                 Long paymentId = Long.valueOf(id);
                 MercadoPagoPaymentResponseDTO payment = obtenerPago(paymentId);
-
-                // Actualizar el pago en nuestro sistema
-                pagoService.confirmarPagoMercadoPago(
-                        paymentId,
-                        payment.getStatus(),
-                        payment.getStatusDetail()
-                );
-
+                pagoService.confirmarPagoMercadoPago(paymentId, payment.getStatus(), payment.getStatusDetail());
                 logger.info("Webhook procesado exitosamente para payment ID: {}", paymentId);
             }
-
         } catch (Exception e) {
             logger.error("Error procesando webhook: {}", e.getMessage(), e);
             throw new RuntimeException("Error procesando webhook de Mercado Pago", e);
@@ -138,8 +293,6 @@ public class MercadoPagoServiceImpl implements IMercadoPagoService {
 
     @Override
     public void cancelarPreferencia(String preferenceId) {
-        // Mercado Pago no tiene endpoint directo para cancelar preferencias
-        // Las preferencias expiran automáticamente después de 6 meses
         logger.info("Preference {} marcada para cancelación (expira automáticamente)", preferenceId);
     }
 
@@ -147,14 +300,7 @@ public class MercadoPagoServiceImpl implements IMercadoPagoService {
     public void procesarReembolso(Long paymentId, Double amount) {
         try {
             initializeClients();
-
-            // Para reembolsos necesitas usar RefundClient
-            // Este es un ejemplo básico, deberías implementar RefundClient
             logger.info("Procesando reembolso para payment {} por monto {}", paymentId, amount);
-
-            // Actualizar estado en nuestro sistema
-            // pagoService.procesarReembolso(pagoId);
-
         } catch (Exception e) {
             logger.error("Error procesando reembolso: {}", e.getMessage(), e);
             throw new RuntimeException("Error procesando reembolso", e);
@@ -166,35 +312,16 @@ public class MercadoPagoServiceImpl implements IMercadoPagoService {
         return accessToken;
     }
 
-    // Métodos de conversión
-    private PreferenceItemRequest convertToPreferenceItem(MercadoPagoPreferenceDTO.ItemDTO item) {
-        return PreferenceItemRequest.builder()
-                .title(item.getTitle())
-                .quantity(item.getQuantity())
-                .unitPrice(BigDecimal.valueOf(item.getUnitPrice()))
-                .currencyId(item.getCurrencyId())
-                .description(item.getDescription())
-                .build();
-    }
-
-    private PreferencePayerRequest convertToPreferencePayer(MercadoPagoPreferenceDTO.PayerDTO payer) {
-        return PreferencePayerRequest.builder()
-                .name(payer.getName())
-                .surname(payer.getSurname())
-                .email(payer.getEmail())
-                .build();
-    }
-
     private MercadoPagoPreferenceResponseDTO convertToPreferenceResponse(Preference preference) {
         MercadoPagoPreferenceResponseDTO response = new MercadoPagoPreferenceResponseDTO();
         response.setId(preference.getId());
         response.setInitPoint(preference.getInitPoint());
         response.setSandboxInitPoint(preference.getSandboxInitPoint());
         response.setClientId(preference.getClientId());
-        response.setCollectorId(preference.getCollectorId()); // Ahora es Long, no String
+        response.setCollectorId(preference.getCollectorId());
         response.setOperationType(preference.getOperationType());
-        response.setExternalReference(preference.getExternalReference()); // Campo que sí existe
-        response.setNotificationUrl(preference.getNotificationUrl());     // Campo que sí existe
+        response.setExternalReference(preference.getExternalReference());
+        response.setNotificationUrl(preference.getNotificationUrl());
         return response;
     }
 
