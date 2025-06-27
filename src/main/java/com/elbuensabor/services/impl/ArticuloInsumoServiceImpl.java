@@ -299,7 +299,7 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
         UnidadMedida unidadMedida = unidadMedidaRepository.findById(dto.getIdUnidadMedida())
                 .orElseThrow(() -> new ResourceNotFoundException("Unidad de medida con ID " + dto.getIdUnidadMedida() + " no encontrada"));
         insumo.setUnidadMedida(unidadMedida);
-        unidadMedida.getArticulos().add(insumo);
+        // unidadMedida.getArticulos().add(insumo); //
 
         // Asignar categoría (DEBE existir previamente)
         Categoria categoria = categoriaRepository.findById(dto.getIdCategoria())

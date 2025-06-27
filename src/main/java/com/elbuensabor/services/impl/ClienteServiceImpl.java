@@ -1,7 +1,11 @@
 package com.elbuensabor.services.impl;
 
+import com.elbuensabor.dto.request.ClienteRegisterDTO;
 import com.elbuensabor.dto.response.ClienteResponseDTO;
 import com.elbuensabor.entities.Cliente;
+import com.elbuensabor.entities.Rol;
+import com.elbuensabor.entities.Usuario;
+import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IClienteRepository;
 import com.elbuensabor.services.IClienteService;
@@ -12,10 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Implementación del servicio de clientes
- * Solo maneja operaciones CRUD, el registro se hace en Auth0Service
- */
+import java.util.stream.Collectors;
+
 @Service
 public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, ClienteResponseDTO, IClienteRepository, ClienteMapper>
         implements IClienteService {
@@ -26,6 +28,11 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
     public ClienteServiceImpl(IClienteRepository repository, ClienteMapper mapper) {
         super(repository, mapper, Cliente.class, ClienteResponseDTO.class);
     }
+    @Override
+    public boolean existsByAuth0Id(String auth0Id) {
+        return repository.existsByUsuarioAuth0Id(auth0Id);
+    }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -46,20 +53,6 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
         return mapper.toDTO(cliente);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public boolean existsByAuth0Id(String auth0Id) {
-        logger.debug("Checking if cliente exists for Auth0 ID: {}", auth0Id);
-
-        if (auth0Id == null || auth0Id.trim().isEmpty()) {
-            return false;
-        }
-
-        boolean exists = repository.findByUsuarioAuth0Id(auth0Id).isPresent();
-        logger.debug("Cliente exists for Auth0 ID {}: {}", auth0Id, exists);
-
-        return exists;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -135,9 +128,11 @@ public class ClienteServiceImpl extends GenericServiceImpl<Cliente, Long, Client
             logger.debug("Updated email for cliente ID: {}", existingCliente.getIdCliente());
         }
 
+
         // TODO: Actualizar domicilios e imagen si están presentes en el DTO
         // Por ahora se mantiene la lógica simple, se puede extender después
 
         logger.debug("Updated fields for cliente ID: {}", existingCliente.getIdCliente());
     }
+
 }

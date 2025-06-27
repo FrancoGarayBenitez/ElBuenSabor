@@ -1,7 +1,7 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.4.5'
-	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.springframework.boot' version '3.3.1' // <-- CORRECCIÓN 1: Versión estable
+	id 'io.spring.dependency-management' version '1.1.5' // <-- Versión compatible con SB 3.3.1
 }
 
 group = 'com.elbuensabor'
@@ -38,8 +38,8 @@ dependencies {
 
 	// JWT
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
-	implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
-	implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5' // runtimeOnly es más seguro
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // runtimeOnly es más seguro
 
 	// Mercado Pago SDK
 	implementation 'com.mercadopago:sdk-java:2.1.28'
@@ -52,13 +52,14 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	//sdk auth0
-	implementation("com.auth0:auth0:1.45.0")
-	//security
-	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// --- CORRECCIÓN 2: AÑADIR ESTE BLOQUE COMPLETO ---
+// Esto le dice al IDE y a Gradle dónde encontrar el código generado por MapStruct
+tasks.withType(JavaCompile).configureEach {
+	options.getGeneratedSourceOutputDirectory().set(file(layout.getBuildDirectory().dir("generated/sources/annotationProcessor/java/main")))
 }

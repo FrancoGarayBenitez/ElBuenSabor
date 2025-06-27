@@ -36,7 +36,8 @@ public interface PagoMapper extends BaseMapper<Pago, PagoResponseDTO> {
     @Mapping(target = "fechaCreacion", ignore = true)     // Se asigna en el service
     @Mapping(target = "fechaActualizacion", ignore = true) // Se asigna en el service
     @Mapping(target = "datosMercadoPago", ignore = true)  // Se asigna en el service si es necesario
-    @Mapping(target = "mercadoPagoPreferenceId", ignore = true) // No viene del ResponseDTO
+    @Mapping(target = "mercadoPagoPreferenceId", ignore = true)
+    @Mapping(target = "mercadoPagoPaymentId", ignore = true)
     Pago toEntity(PagoResponseDTO dto);
 
     // ==================== UPDATE ENTITY FROM DTO ====================
@@ -48,6 +49,7 @@ public interface PagoMapper extends BaseMapper<Pago, PagoResponseDTO> {
     @Mapping(target = "fechaActualizacion", ignore = true)
     @Mapping(target = "datosMercadoPago", ignore = true)
     @Mapping(target = "mercadoPagoPreferenceId", ignore = true)
+    @Mapping(target = "mercadoPagoPaymentId", ignore = true)
     void updateEntityFromDTO(PagoResponseDTO dto, @MappingTarget Pago entity);
 
     // ==================== REQUEST DTO → ENTITY ====================
@@ -59,6 +61,7 @@ public interface PagoMapper extends BaseMapper<Pago, PagoResponseDTO> {
     @Mapping(target = "fechaActualizacion", ignore = true) // Se asigna en el service
     @Mapping(target = "datosMercadoPago", ignore = true)  // Se asigna en el service si es necesario
     @Mapping(target = "mercadoPagoPreferenceId", source = "mercadoPagoPreferenceId")
+    @Mapping(target = "mercadoPagoPaymentId", ignore = true)
     @Mapping(target = "moneda", defaultValue = "ARS")
     Pago toEntityFromRequest(PagoRequestDTO dto);
 }

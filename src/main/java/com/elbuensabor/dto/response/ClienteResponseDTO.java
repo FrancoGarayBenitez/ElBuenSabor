@@ -17,6 +17,7 @@ public class ClienteResponseDTO {
     private String nombre;
     private String apellido;
     private String email;
+    private String rol;
     private String telefono;
     private LocalDate fechaNacimiento;
     private List<DomicilioResponseDTO> domicilios; // <-- Cambia a DomicilioResponseDTO

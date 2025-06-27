@@ -36,6 +36,8 @@ public interface IClienteRepository extends JpaRepository<Cliente, Long> {
             "LEFT JOIN FETCH c.imagen " +
             "WHERE c.usuario.email = :email")
     Optional<Cliente> findByUsuarioEmail(@Param("email") String email);
+    // LÍNEA CORRECTA
+    boolean existsByUsuarioAuth0Id(String auth0Id);
 
     /**
      * Verifica si existe otro cliente con el mismo email (excluyendo el cliente actual)
