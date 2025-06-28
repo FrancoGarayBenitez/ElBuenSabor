@@ -81,6 +81,9 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
 
         // Crear y asignar detalles
         crearDetalles(manufacturado, manufacturadoRequestDTO.getDetalles());
+        // Guardar el margen en la entidad (por si después recalculás el precio)
+        manufacturado.setMargenGanancia(manufacturadoRequestDTO.getMargenGanancia());
+
 
         // Calcular precio si no se proporcionó
         if (manufacturadoRequestDTO.getPrecioVenta() == null) {
@@ -158,6 +161,9 @@ public class ArticuloManufacturadoServiceImpl extends GenericServiceImpl<Articul
 
         existingManufacturado.getDetalles().clear();
         crearDetalles(existingManufacturado, manufacturadoRequestDTO.getDetalles());
+
+        // Guardar el margen en la entidad (por si después recalculás el precio)
+        existingManufacturado.setMargenGanancia(manufacturadoRequestDTO.getMargenGanancia());
 
         // Recalcular precio si es necesario
         if (manufacturadoRequestDTO.getPrecioVenta() == null) {

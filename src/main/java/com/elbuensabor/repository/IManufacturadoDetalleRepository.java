@@ -15,5 +15,7 @@ public interface IManufacturadoDetalleRepository extends JpaRepository<ArticuloM
     @Modifying
     @Query("DELETE FROM ArticuloManufacturadoDetalle d WHERE d.articuloManufacturado.idArticulo = :idArticulo")
     void deleteByArticuloManufacturadoId(@Param("idArticulo") Long idArticulo);
+    List<ArticuloManufacturadoDetalle> findByArticuloInsumo_IdArticulo(Long idArticuloInsumo);
+
 
 }

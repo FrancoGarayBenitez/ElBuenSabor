@@ -38,8 +38,10 @@ public class SecurityConfig {
                                 "/api/unidades-medida/**",
                                 "/api/articulos-manufacturados/**",
                                 "/payment/**",
-                                "/webhooks/mercadopago"
-                        ).permitAll()
+                                "/webhooks/mercadopago",
+                                "/api/compras-insumo/**"
+
+                                ).permitAll()
 
                         // CORS preflight
                         .requestMatchers("OPTIONS", "/**").permitAll()
