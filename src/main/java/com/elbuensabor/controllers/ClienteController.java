@@ -2,14 +2,17 @@ package com.elbuensabor.controllers;
 
 import com.elbuensabor.dto.request.ClientePerfilDTO;
 import com.elbuensabor.dto.response.ClienteResponseDTO;
+import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.services.IClienteService;
 import com.elbuensabor.services.mapper.ClientePerfilMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +23,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,6 +56,80 @@ public class ClienteController {
         this.clientePerfilMapper = clientePerfilMapper;
     }
 
+    /**
+     * GET /api/clientes/me
+     * Endpoint específico para MercadoPago integration con mejor manejo de errores
+     */
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentClienteForMercadoPago(@AuthenticationPrincipal Jwt jwt,
+                                                             HttpServletRequest request) {
+        try {
+            // 🔍 DEBUG: Verificar headers de autenticación
+            String authHeader = request.getHeader("Authorization");
+            logger.debug("🔍 /api/clientes/me called");
+            logger.debug("🔍 Authorization header present: {}", authHeader != null ? "YES" : "NO");
+            logger.debug("🔍 Authorization header value: {}", authHeader != null ? authHeader.substring(0, Math.min(20, authHeader.length())) + "..." : "null");
+            logger.debug("🔍 JWT object: {}", jwt != null ? "Present" : "NULL");
+
+            if (jwt == null) {
+                logger.warn("❌ JWT is null for /api/clientes/me");
+                logger.warn("❌ Authorization header: {}", authHeader);
+
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of(
+                                "error", "Token JWT requerido",
+                                "code", "JWT_NULL",
+                                "message", "No se recibió un token JWT válido. Verifique el header Authorization: Bearer <token>",
+                                "authHeaderPresent", authHeader != null,
+                                "timestamp", java.time.Instant.now().toString()
+                        ));
+            }
+
+            String auth0Id = jwt.getSubject();
+            logger.debug("🔍 Processing request for Auth0 user: {}", auth0Id);
+
+            // Buscar cliente por Auth0 ID
+            ClienteResponseDTO cliente = clienteService.findByAuth0Id(auth0Id);
+
+            // Formatear respuesta específicamente para MercadoPago
+            Map<String, Object> response = Map.of(
+                    "idCliente", cliente.getIdCliente(),
+                    "idUsuario", cliente.getIdUsuario(),
+                    "emailComprador", cliente.getEmail(),
+                    "nombreComprador", cliente.getNombre(),
+                    "apellidoComprador", cliente.getApellido(),
+                    "auth0Id", auth0Id,
+                    "rol", cliente.getRol() != null ? cliente.getRol() : "CLIENTE"
+            );
+
+            logger.info("✅ Cliente data retrieved successfully for user: {} - Cliente ID: {}, Usuario ID: {}",
+                    auth0Id, cliente.getIdCliente(), cliente.getIdUsuario());
+
+            return ResponseEntity.ok(response);
+
+        } catch (ResourceNotFoundException e) {
+            logger.error("❌ Cliente not found for Auth0 user: {} - Error: {}",
+                    jwt != null ? jwt.getSubject() : "unknown", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(
+                            "error", "Cliente no encontrado",
+                            "details", "No se encontró un cliente asociado con este usuario Auth0",
+                            "code", "CLIENTE_NOT_FOUND",
+                            "auth0Id", jwt != null ? jwt.getSubject() : "unknown"
+                    ));
+
+        } catch (Exception e) {
+            logger.error("❌ Error interno en /api/clientes/me para user {}: {}",
+                    jwt != null ? jwt.getSubject() : "unknown", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "error", "Error interno del servidor",
+                            "details", e.getMessage(),
+                            "code", "INTERNAL_ERROR",
+                            "timestamp", java.time.Instant.now().toString()
+                    ));
+        }
+    }
     // ==================== ENDPOINTS ADMINISTRATIVOS ====================
 
     @GetMapping
@@ -353,5 +432,51 @@ public class ClienteController {
                             "message", "Error al obtener información de Auth0"
                     ));
         }
+    }
+
+    /**
+     * GET /api/clientes/debug
+     * Endpoint temporal para diagnosticar problemas de autenticación
+     * ⚠️ ELIMINAR EN PRODUCCIÓN
+     */
+    @GetMapping("/debug")
+    public ResponseEntity<?> debugAuth(@AuthenticationPrincipal Jwt jwt,
+                                       HttpServletRequest request,
+                                       Authentication authentication) {
+
+        Map<String, Object> debug = new HashMap<>();
+
+        // Headers
+        debug.put("authorizationHeader", request.getHeader("Authorization"));
+        debug.put("allHeaders", Collections.list(request.getHeaderNames()));
+
+        // JWT info
+        debug.put("jwtPresent", jwt != null);
+        if (jwt != null) {
+            debug.put("jwtSubject", jwt.getSubject());
+            debug.put("jwtClaims", jwt.getClaims().keySet());
+            debug.put("jwtTokenValue", jwt.getTokenValue().substring(0, Math.min(50, jwt.getTokenValue().length())) + "...");
+        }
+
+        // Authentication info
+        debug.put("authenticationPresent", authentication != null);
+        if (authentication != null) {
+            debug.put("authenticationName", authentication.getName());
+            debug.put("authenticationAuthorities", authentication.getAuthorities());
+            debug.put("authenticationPrincipal", authentication.getPrincipal().getClass().getSimpleName());
+        }
+
+        // Request info
+        debug.put("requestURL", request.getRequestURL().toString());
+        debug.put("requestMethod", request.getMethod());
+        debug.put("remoteAddr", request.getRemoteAddr());
+
+        logger.info("🔍 DEBUG AUTH INFO: {}", debug);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Debug de autenticación",
+                "data", debug,
+                "timestamp", java.time.Instant.now().toString()
+        ));
     }
 }
