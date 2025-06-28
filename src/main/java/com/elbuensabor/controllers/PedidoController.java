@@ -93,30 +93,10 @@ public class PedidoController {
         return ResponseEntity.ok(pedido);
     }
 
-    // ==================== CREAR PEDIDO ====================
-    @PostMapping
-    public ResponseEntity<PedidoResponseDTO> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
-        PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
-        return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
-    }
-
-    // ==================== FILTROS PARA DIFERENTES ROLES ====================
-    @GetMapping("/pendientes")
-    public ResponseEntity<List<PedidoResponseDTO>> getPedidosPendientes() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
-        return ResponseEntity.ok(pedidos);
-    }
-
     @GetMapping("/{id}")
     public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
         PedidoResponseDTO pedido = pedidoService.findById(id);
         return ResponseEntity.ok(pedido);
-    }
-
-    @GetMapping("/listos-para-entrega")
-    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaEntrega() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaEntrega();
-        return ResponseEntity.ok(pedidos);
     }
 
     // Para mostrador/caja - pedidos listos para retirar
