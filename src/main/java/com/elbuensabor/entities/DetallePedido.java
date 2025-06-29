@@ -30,7 +30,40 @@ public class DetallePedido {
     @JoinColumn(name = "id_pedido", nullable = false)
     private Pedido pedido;
 
-    // ✅ NUEVO CAMPO: Observaciones específicas del producto
     @Column(name = "observaciones", columnDefinition = "TEXT")
     private String observaciones;
+
+    // ✅ NUEVOS CAMPOS PARA PROMOCIONES
+    @Column(name = "precio_unitario_original", nullable = false)
+    private Double precioUnitarioOriginal; // Precio sin promoción
+
+    @Column(name = "descuento_promocion")
+    private Double descuentoPromocion = 0.0; // Monto del descuento aplicado
+
+    @ManyToOne
+    @JoinColumn(name = "id_promocion")
+    private Promocion promocionAplicada; // Promoción que se aplicó (si existe)
+
+    // ✅ MÉTODOS DE UTILIDAD
+    public Double getPrecioUnitarioFinal() {
+        return precioUnitarioOriginal - (descuentoPromocion / cantidad);
+    }
+
+    public Double getSubtotalOriginal() {
+        return precioUnitarioOriginal * cantidad;
+    }
+
+    public Boolean tienePromocion() {
+        return promocionAplicada != null && descuentoPromocion > 0;
+    }
+
+    public String getResumenDescuento() {
+        if (!tienePromocion()) {
+            return null;
+        }
+
+        return String.format("Promoción '%s': -$%.2f",
+                promocionAplicada.getDenominacion(),
+                descuentoPromocion);
+    }
 }

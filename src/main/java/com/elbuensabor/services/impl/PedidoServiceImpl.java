@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -49,6 +50,11 @@ public class PedidoServiceImpl implements IPedidoService {
     @Autowired
     private ISucursalEmpresaRepository sucursalRepository;
 
+    @Autowired
+    private IPromocionRepository promocionRepository;
+
+    @Autowired
+    private PromocionPedidoService promocionPedidoService;
     private PedidoResponseDTO enrichPedidoResponse(Pedido pedido) {
         PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
 
@@ -182,23 +188,50 @@ public class PedidoServiceImpl implements IPedidoService {
         // 7. Guardar pedido
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
         System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
-        // 8. Crear detalles del pedido
-        List<DetallePedido> detalles = pedidoRequest.getDetalles().stream()
-                .map(detalleRequest -> {
-                    Articulo articulo = buscarArticuloPorId(detalleRequest.getIdArticulo()); // ← Cambiar esta línea
+
+
+        // 8. Aplicar promociones antes de crear detalles del pedido
+        System.out.println("🎯 Aplicando promociones al pedido...");
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
+                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+
+        System.out.println("💰 Promociones procesadas: " + promocionesAplicadas.getResumenPromociones());
+
+// 9. Crear detalles del pedido CON PROMOCIONES
+        List<DetallePedido> detalles = promocionesAplicadas.getDetallesConPromociones().stream()
+                .map(detalleConPromocion -> {
+                    Articulo articulo = buscarArticuloPorId(detalleConPromocion.getIdArticulo());
 
                     DetallePedido detalle = new DetallePedido();
                     detalle.setPedido(pedidoGuardado);
                     detalle.setArticulo(articulo);
-                    detalle.setCantidad(detalleRequest.getCantidad());
-                    detalle.setSubtotal(articulo.getPrecioVenta() * detalleRequest.getCantidad());
+                    detalle.setCantidad(detalleConPromocion.getCantidad());
 
-                    // ✅ NUEVO: Asignar observaciones del producto
-                    detalle.setObservaciones(detalleRequest.getObservaciones());
+                    // ✅ NUEVO: Campos de promoción
+                    detalle.setPrecioUnitarioOriginal(detalleConPromocion.getPrecioUnitarioOriginal());
+                    detalle.setDescuentoPromocion(detalleConPromocion.getDescuentoAplicado());
+                    detalle.setSubtotal(detalleConPromocion.getSubtotalFinal()); // Precio con descuento
+                    detalle.setObservaciones(detalleConPromocion.getObservaciones());
+
+                    // Asignar promoción si existe
+                    if (detalleConPromocion.getTienePromocion() &&
+                            detalleConPromocion.getPromocionAplicada() != null) {
+
+                        try {
+                            Promocion promocion = promocionRepository.findById(
+                                    detalleConPromocion.getPromocionAplicada().getIdPromocion()
+                            ).orElse(null);
+                            detalle.setPromocionAplicada(promocion);
+                        } catch (Exception e) {
+                            logger.warn("⚠️ Error asignando promoción: {}", e.getMessage());
+                        }
+                    }
 
                     System.out.println("📦 Detalle creado: " + articulo.getDenominacion() +
-                            " (" + (articulo instanceof ArticuloManufacturado ? "Manufacturado" : "Insumo") + ")" +
-                            " x " + detalleRequest.getCantidad() + " = $" + detalle.getSubtotal());
+                            " x " + detalleConPromocion.getCantidad() +
+                            " = $" + detalle.getSubtotal() +
+                            (detalleConPromocion.getTienePromocion() ?
+                                    " (con promoción: -$" + detalleConPromocion.getDescuentoAplicado() + ")" : ""));
 
                     return detalle;
                 })
@@ -247,14 +280,14 @@ public class PedidoServiceImpl implements IPedidoService {
     public PedidoResponseDTO findById(Long id) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido no encontrado"));
-        return enrichPedidoResponse(pedido);
+        return enrichPedidoResponseConPromociones(pedido);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findAll() {
         return pedidoRepository.findAll().stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -262,7 +295,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findByCliente(Long idCliente) {
         return pedidoRepository.findByClienteIdClienteOrderByFechaDesc(idCliente).stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -281,7 +314,7 @@ public class PedidoServiceImpl implements IPedidoService {
         actualizarStockDesdePedido(pedido);
 
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-        return enrichPedidoResponse(pedidoActualizado);
+        return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
     @Override
@@ -298,7 +331,7 @@ public class PedidoServiceImpl implements IPedidoService {
         actualizarStockDesdePedido(pedido);
 
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-        return enrichPedidoResponse(pedidoActualizado);
+        return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
     @Override
@@ -313,7 +346,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedido.setEstado(Estado.LISTO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-        return enrichPedidoResponse(pedidoActualizado);
+        return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
     @Override
@@ -330,7 +363,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedido.setEstado(Estado.ENTREGADO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-        return enrichPedidoResponse(pedidoActualizado);
+        return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
     @Override
@@ -350,7 +383,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedido.setEstado(Estado.CANCELADO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
-        return enrichPedidoResponse(pedidoActualizado);
+        return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
     @Override
@@ -392,15 +425,16 @@ public class PedidoServiceImpl implements IPedidoService {
     @Override
     @Transactional(readOnly = true)
     public Double calcularTotal(PedidoRequestDTO pedidoRequest) {
-        double subtotal = 0;
+        System.out.println("💰 Calculando total CON promociones...");
 
-        for (var detalle : pedidoRequest.getDetalles()) {
-            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo());
-            subtotal += articulo.getPrecioVenta() * detalle.getCantidad();
-            System.out.println("💰 Producto: " + articulo.getDenominacion() +
-                    " - Precio: $" + articulo.getPrecioVenta() +
-                    " x " + detalle.getCantidad() + " = $" + (articulo.getPrecioVenta() * detalle.getCantidad()));
-        }
+        // Aplicar promociones y obtener subtotal con descuentos
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
+                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+
+        double subtotal = promocionesAplicadas.getSubtotalFinal(); // Ya incluye descuentos
+
+        System.out.println("💰 Subtotal con promociones: $" + subtotal);
+        System.out.println("🎯 Descuento total aplicado: $" + promocionesAplicadas.getDescuentoTotal());
 
         // Agregar costo de envío si es delivery
         if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
@@ -408,7 +442,7 @@ public class PedidoServiceImpl implements IPedidoService {
             System.out.println("🚚 Costo delivery: $200");
         }
 
-        System.out.println("💰 Total calculado: $" + subtotal);
+        System.out.println("💰 Total final calculado: $" + subtotal);
         return subtotal;
     }
     // ==================== MÉTODO CALCULAR TIEMPO ESTIMADO CORREGIDO ====================
@@ -445,7 +479,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findPedidosPendientes() {
         return pedidoRepository.findByEstadoOrderByFechaAsc(Estado.PENDIENTE).stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -453,7 +487,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findPedidosEnPreparacion() {
         return pedidoRepository.findByEstadoOrderByFechaAsc(Estado.PREPARACION).stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -461,7 +495,7 @@ public class PedidoServiceImpl implements IPedidoService {
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findPedidosListos() {
         return pedidoRepository.findByEstadoOrderByFechaAsc(Estado.LISTO).stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -470,7 +504,7 @@ public class PedidoServiceImpl implements IPedidoService {
     public List<PedidoResponseDTO> findPedidosListosParaEntrega() {
         // Pedidos listos para delivery
         return pedidoRepository.findByEstadoAndTipoEnvioOrderByFechaAsc(Estado.LISTO, TipoEnvio.DELIVERY).stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -479,7 +513,7 @@ public class PedidoServiceImpl implements IPedidoService {
     public List<PedidoResponseDTO> findPedidosListosParaRetiro() {
         // Pedidos listos para take away
         return pedidoRepository.findByEstadoAndTipoEnvioOrderByFechaAsc(Estado.LISTO, TipoEnvio.TAKE_AWAY).stream()
-                .map(this::enrichPedidoResponse)
+                .map(this::enrichPedidoResponseConPromociones)
                 .collect(Collectors.toList());
     }
 
@@ -572,5 +606,63 @@ public class PedidoServiceImpl implements IPedidoService {
                 articuloInsumoRepository.save(insumo);
             }
         }
+
     }
+
+    private PedidoResponseDTO enrichPedidoResponseConPromociones(Pedido pedido) {
+        PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
+
+        // Calcular stock (siempre true para pedidos ya creados)
+        response.setStockSuficiente(true);
+
+        // Calcular tiempo estimado desde los detalles
+        response.setTiempoEstimadoTotal(calcularTiempoEstimadoDesdeDetalles(pedido.getDetalles()));
+
+        // ✅ NUEVO: Calcular resumen de promociones
+        PedidoResponseDTO.ResumenPromocionesDTO resumenPromociones = calcularResumenPromociones(pedido.getDetalles());
+        response.setResumenPromociones(resumenPromociones);
+
+        return response;
+    }
+
+    private PedidoResponseDTO.ResumenPromocionesDTO calcularResumenPromociones(List<DetallePedido> detalles) {
+        PedidoResponseDTO.ResumenPromocionesDTO resumen = new PedidoResponseDTO.ResumenPromocionesDTO();
+
+        double subtotalOriginal = 0.0;
+        double totalDescuentos = 0.0;
+        int cantidadPromociones = 0;
+        List<String> nombresPromociones = new ArrayList<>();
+
+        for (DetallePedido detalle : detalles) {
+            subtotalOriginal += detalle.getPrecioUnitarioOriginal() * detalle.getCantidad();
+
+            if (detalle.getDescuentoPromocion() != null && detalle.getDescuentoPromocion() > 0) {
+                totalDescuentos += detalle.getDescuentoPromocion();
+                cantidadPromociones++;
+
+                if (detalle.getPromocionAplicada() != null) {
+                    String nombrePromocion = detalle.getPromocionAplicada().getDenominacion();
+                    if (!nombresPromociones.contains(nombrePromocion)) {
+                        nombresPromociones.add(nombrePromocion);
+                    }
+                }
+            }
+        }
+
+        resumen.setSubtotalOriginal(subtotalOriginal);
+        resumen.setTotalDescuentos(totalDescuentos);
+        resumen.setSubtotalConDescuentos(subtotalOriginal - totalDescuentos);
+        resumen.setCantidadPromociones(cantidadPromociones);
+        resumen.setNombresPromociones(nombresPromociones);
+
+        if (cantidadPromociones > 0) {
+            resumen.setResumenTexto(String.format("%d promoción(es) aplicada(s) - Ahorro: $%.2f",
+                    cantidadPromociones, totalDescuentos));
+        } else {
+            resumen.setResumenTexto("Sin promociones aplicadas");
+        }
+
+        return resumen;
+    }
+
 }

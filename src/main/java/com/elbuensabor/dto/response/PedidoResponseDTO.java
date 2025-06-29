@@ -18,8 +18,6 @@ public class PedidoResponseDTO {
     private Double total;
     private String estado;
     private String tipoEnvio;
-
-    // ✅ NUEVO: Observaciones generales del pedido
     private String observaciones;
 
     // Información del cliente
@@ -37,4 +35,19 @@ public class PedidoResponseDTO {
     // Información adicional
     private Integer tiempoEstimadoTotal; // en minutos
     private Boolean stockSuficiente;
+
+    // ✅ NUEVOS: Resumen de promociones del pedido
+    private ResumenPromocionesDTO resumenPromociones;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ResumenPromocionesDTO {
+        private Double subtotalOriginal;      // Total sin promociones
+        private Double totalDescuentos;       // Total de descuentos aplicados
+        private Double subtotalConDescuentos; // Total después de promociones
+        private Integer cantidadPromociones;  // Número de promociones aplicadas
+        private List<String> nombresPromociones; // Lista de promociones aplicadas
+        private String resumenTexto;          // "3 promociones aplicadas - Ahorro: $450"
+    }
 }

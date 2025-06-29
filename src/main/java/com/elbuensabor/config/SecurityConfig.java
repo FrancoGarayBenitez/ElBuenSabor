@@ -23,7 +23,6 @@ public class SecurityConfig {
     public SecurityConfig(CorsConfigurationSource corsConfigurationSource) {
         this.corsConfigurationSource = corsConfigurationSource;
     }
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
@@ -33,13 +32,13 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> {
                             jwt.jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter());
-                            // 🔍 DEBUG: Agregar logging para JWT processing
                             logger.debug("🔍 Configuring JWT authentication converter");
                         })
                 )
                 .authorizeHttpRequests(auth -> {
                     logger.debug("🔍 Configuring authorization rules");
                     auth
+                            // ==================== ENDPOINTS PÚBLICOS ====================
                             .requestMatchers(
                                     "/api/auth0/register",
                                     "/api/categorias/**",
@@ -50,13 +49,21 @@ public class SecurityConfig {
                                     "/webhooks/mercadopago",
                                     "/img/**",
                                     "/static/**",
-                                    "/api/images/**" //
+                                    "/api/images/**",
+                                    // ✅ NUEVOS: Promociones públicas para el catálogo
+                                    "/api/promociones/vigentes",
+                                    "/api/promociones/articulo/**",
+                                    "/api/promociones/aplicables",
+                                    "/api/promociones/calcular-descuentos"
                             ).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                            // ==================== ENDPOINTS AUTENTICADOS ====================
                             .requestMatchers(
                                     "/api/clientes/**",
                                     "/api/auth/**",
-                                    "/api/pedidos/**",
+                                    "/api/pedidos/**",        // Incluye preview-carrito
+                                    "/api/pedidos-mercadopago/**", // Si usas este controller
                                     "/api/auth0/login",
                                     "/api/auth0/me",
                                     "/api/auth0/validate",
@@ -64,7 +71,17 @@ public class SecurityConfig {
                                     "/api/auth0/complete-profile",
                                     "/api/auth0/refresh-roles"
                             ).authenticated()
+
+                            // ==================== ENDPOINTS DE ADMINISTRACIÓN ====================
                             .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            // ✅ NUEVOS: Gestión de promociones (admin)
+                            .requestMatchers(HttpMethod.POST, "/api/promociones").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/promociones/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.DELETE, "/api/promociones/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PATCH, "/api/promociones/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.GET, "/api/promociones").hasRole("ADMIN") // Lista completa
+                            .requestMatchers(HttpMethod.GET, "/api/promociones/*").hasRole("ADMIN") // Por ID
+
                             .anyRequest().authenticated();
                 })
                 .httpBasic(httpBasic -> httpBasic.disable())

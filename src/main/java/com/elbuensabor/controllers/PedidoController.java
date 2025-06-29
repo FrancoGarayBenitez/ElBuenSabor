@@ -7,14 +7,19 @@ import com.elbuensabor.services.IHorarioService;
 import com.elbuensabor.services.IPedidoService;
 import com.elbuensabor.services.impl.HorarioServiceImpl;
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.elbuensabor.dto.response.FacturaResponseDTO;
+import com.elbuensabor.services.impl.PromocionPedidoService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/pedidos")
@@ -22,11 +27,13 @@ public class PedidoController {
 
     private final IPedidoService pedidoService;
     private final IHorarioService horarioService;
+    private final PromocionPedidoService promocionPedidoService;
 
     @Autowired
-    public PedidoController(IPedidoService pedidoService, IHorarioService horarioService) { // 3. USA LA INTERFAZ
+    public PedidoController(IPedidoService pedidoService, IHorarioService horarioService, PromocionPedidoService promocionPedidoService) {
         this.pedidoService = pedidoService;
         this.horarioService = horarioService;
+        this.promocionPedidoService = promocionPedidoService; // NUEVO
     }
 
     // ==================== CREAR PEDIDO ====================
@@ -192,5 +199,108 @@ public class PedidoController {
     public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long id) {
         FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
         return ResponseEntity.ok(factura);
+    }
+    /**
+     * POST /api/pedidos/preview-carrito
+     * Preview del carrito con promociones aplicadas
+     */
+    @PostMapping("/preview-carrito")
+    public ResponseEntity<CarritoPreviewDTO> previewCarrito(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
+        try {
+            // Usar el service de promociones para calcular
+            PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
+                    promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+
+            // Calcular totales
+            Double subtotalOriginal = promocionesAplicadas.getSubtotalOriginal();
+            Double descuentoTotal = promocionesAplicadas.getDescuentoTotal();
+            Double subtotalConDescuentos = promocionesAplicadas.getSubtotalFinal();
+
+            // Agregar costo de envío si es delivery
+            Double gastosEnvio = 0.0;
+            if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
+                gastosEnvio = 200.0;
+            }
+
+            Double totalFinal = subtotalConDescuentos + gastosEnvio;
+
+            // Crear response
+            CarritoPreviewDTO preview = new CarritoPreviewDTO();
+            preview.setSubtotalOriginal(subtotalOriginal);
+            preview.setDescuentoTotal(descuentoTotal);
+            preview.setSubtotalConDescuentos(subtotalConDescuentos);
+            preview.setGastosEnvio(gastosEnvio);
+            preview.setTotalFinal(totalFinal);
+            preview.setTipoEnvio(pedidoRequest.getTipoEnvio());
+            preview.setResumenPromociones(promocionesAplicadas.getResumenPromociones());
+
+            // Mapear detalles con promociones
+            List<CarritoPreviewDTO.DetallePreviewDTO> detallesPreview =
+                    promocionesAplicadas.getDetallesConPromociones().stream()
+                            .map(detalle -> {
+                                CarritoPreviewDTO.DetallePreviewDTO detalleDto = new CarritoPreviewDTO.DetallePreviewDTO();
+                                detalleDto.setIdArticulo(detalle.getIdArticulo());
+                                detalleDto.setDenominacionArticulo(detalle.getDenominacionArticulo());
+                                detalleDto.setCantidad(detalle.getCantidad());
+                                detalleDto.setPrecioUnitarioOriginal(detalle.getPrecioUnitarioOriginal());
+                                detalleDto.setPrecioUnitarioFinal(detalle.getPrecioUnitarioFinal());
+                                detalleDto.setSubtotalOriginal(detalle.getSubtotalOriginal());
+                                detalleDto.setSubtotalFinal(detalle.getSubtotalFinal());
+                                detalleDto.setDescuentoAplicado(detalle.getDescuentoAplicado());
+                                detalleDto.setTienePromocion(detalle.getTienePromocion());
+                                detalleDto.setObservaciones(detalle.getObservaciones());
+
+                                if (detalle.getPromocionAplicada() != null) {
+                                    detalleDto.setNombrePromocion(detalle.getPromocionAplicada().getDenominacion());
+                                    detalleDto.setResumenDescuento(detalle.getPromocionAplicada().getResumenDescuento());
+                                }
+
+                                return detalleDto;
+                            })
+                            .collect(Collectors.toList());
+
+            preview.setDetalles(detallesPreview);
+
+            return ResponseEntity.ok(preview);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
+// ===============================================
+// AGREGAR ESTA CLASE INTERNA AL FINAL DEL CONTROLLER
+// ===============================================
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CarritoPreviewDTO {
+        private Double subtotalOriginal;      // Total sin promociones
+        private Double descuentoTotal;        // Total de descuentos aplicados
+        private Double subtotalConDescuentos; // Subtotal después de promociones
+        private Double gastosEnvio;           // Gastos de envío (si es delivery)
+        private Double totalFinal;            // Total final a pagar
+        private String tipoEnvio;             // DELIVERY o TAKE_AWAY
+        private String resumenPromociones;    // Resumen de promociones aplicadas
+        private List<DetallePreviewDTO> detalles; // Detalles con promociones
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class DetallePreviewDTO {
+            private Long idArticulo;
+            private String denominacionArticulo;
+            private Integer cantidad;
+            private Double precioUnitarioOriginal;
+            private Double precioUnitarioFinal;
+            private Double subtotalOriginal;
+            private Double subtotalFinal;
+            private Double descuentoAplicado;
+            private Boolean tienePromocion;
+            private String observaciones;
+            private String nombrePromocion;
+            private String resumenDescuento;
+        }
     }
 }
