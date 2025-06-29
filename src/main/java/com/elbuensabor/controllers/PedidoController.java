@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.elbuensabor.dto.response.FacturaResponseDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,7 @@ public class PedidoController {
 
     private final IPedidoService pedidoService;
     private final IHorarioService horarioService;
+    private static final Logger logger = LoggerFactory.getLogger(PedidoController.class);
 
     @Autowired
     public PedidoController(IPedidoService pedidoService, IHorarioService horarioService) { // 3. USA LA INTERFAZ
@@ -137,5 +140,32 @@ public class PedidoController {
     public ResponseEntity<List<PedidoResponseDTO>> getPedidosMostradorListos() {
         List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListosParaRetiro();
         return ResponseEntity.ok(pedidos);
+    }
+
+    /**
+     * Obtiene la factura asociada a un pedido específico
+     */
+    @GetMapping("/{id}/factura")
+    public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long id) {
+        try {
+            FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
+            return ResponseEntity.ok(factura);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Obtiene todos los pedidos (endpoint básico para gestión)
+     */
+    @GetMapping
+    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
+        try {
+            List<PedidoResponseDTO> pedidos = pedidoService.findAll();
+            return ResponseEntity.ok(pedidos);
+        } catch (Exception e) {
+            logger.error("Error al obtener todos los pedidos: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
