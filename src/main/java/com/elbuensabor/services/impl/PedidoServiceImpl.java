@@ -17,12 +17,13 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-public class PedidoServiceImpl implements IPedidoService {
+public class    PedidoServiceImpl implements IPedidoService {
     private static final Logger logger = LoggerFactory.getLogger(PedidoServiceImpl.class);
 
     @Autowired
@@ -253,9 +254,51 @@ public class PedidoServiceImpl implements IPedidoService {
     @Override
     @Transactional(readOnly = true)
     public List<PedidoResponseDTO> findAll() {
-        return pedidoRepository.findAll().stream()
-                .map(this::enrichPedidoResponse)
-                .collect(Collectors.toList());
+        try {
+            logger.info("🔍 Iniciando findAll() - Obteniendo pedidos de BD...");
+
+            List<Pedido> pedidos = pedidoRepository.findAll();
+            logger.info("✅ Pedidos obtenidos de BD: {} pedidos encontrados", pedidos.size());
+
+            List<PedidoResponseDTO> resultado = new ArrayList<>();
+
+            for (int i = 0; i < pedidos.size(); i++) {
+                try {
+                    Pedido pedido = pedidos.get(i);
+                    logger.info("🔄 Procesando pedido {} de {} - ID: {}", i+1, pedidos.size(), pedido.getIdPedido());
+
+                    // Test 1: Mapper básico
+                    logger.info("🧪 Test 1: Ejecutando mapper...");
+                    PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
+                    logger.info("✅ Test 1: Mapper exitoso");
+
+                    // Test 2: Campos adicionales
+                    logger.info("🧪 Test 2: Agregando campos adicionales...");
+                    response.setStockSuficiente(true);
+                    logger.info("✅ Test 2: StockSuficiente agregado");
+
+                    // Test 3: Tiempo estimado (posible problema aquí)
+                    logger.info("🧪 Test 3: Calculando tiempo estimado...");
+                    Integer tiempoEstimado = calcularTiempoEstimadoDesdeDetalles(pedido.getDetalles());
+                    response.setTiempoEstimadoTotal(tiempoEstimado);
+                    logger.info("✅ Test 3: Tiempo estimado calculado: {}", tiempoEstimado);
+
+                    resultado.add(response);
+                    logger.info("✅ Pedido ID {} procesado exitosamente", pedido.getIdPedido());
+
+                } catch (Exception e) {
+                    logger.error("❌ ERROR procesando pedido en índice {}: {}", i, e.getMessage(), e);
+                    // Continuar con el siguiente pedido en lugar de fallar todo
+                }
+            }
+
+            logger.info("🎯 findAll() completado: {} pedidos procesados exitosamente", resultado.size());
+            return resultado;
+
+        } catch (Exception e) {
+            logger.error("❌ ERROR CRÍTICO en findAll(): {}", e.getMessage(), e);
+            throw new RuntimeException("Error al obtener lista de pedidos", e);
+        }
     }
 
     @Override

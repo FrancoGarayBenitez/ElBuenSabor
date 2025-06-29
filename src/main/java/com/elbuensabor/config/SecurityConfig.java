@@ -48,9 +48,12 @@ public class SecurityConfig {
                                     "/api/articulos-manufacturados/**",
                                     "/payment/**",
                                     "/webhooks/mercadopago",
+                                "/api/compras-insumo/**"
+,
                                     "/img/**",
                                     "/static/**",
-                                    "/api/images/**"
+                                    "/api/images/**",
+                                    "/api/imagenes/**"
                             ).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
