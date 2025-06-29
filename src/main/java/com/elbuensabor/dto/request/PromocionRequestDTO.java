@@ -41,6 +41,11 @@ public class PromocionRequestDTO {
     @DecimalMin(value = "0.0", message = "El valor del descuento no puede ser negativo")
     private Double valorDescuento;
 
+    // ✅ NUEVO: Campo agregado para el precio promocional
+    @NotNull(message = "El precio promocional es obligatorio")
+    @DecimalMin(value = "0.0", message = "El precio promocional no puede ser negativo")
+    private Double precioPromocional;
+
     @DecimalMin(value = "1", message = "La cantidad mínima debe ser al menos 1")
     private Integer cantidadMinima = 1;
 

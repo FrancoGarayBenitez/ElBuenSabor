@@ -41,8 +41,15 @@ public class DetallePedidoResponseDTO {
 
     // ✅ MÉTODOS DE CONVENIENCIA (calculados automáticamente)
     public Double getSubtotalOriginal() {
+        if (precioUnitarioOriginal == null || cantidad == null) {
+            // Fallback: usar el precio actual si no hay precio original
+            return (precioUnitario != null && cantidad != null)
+                    ? precioUnitario * cantidad
+                    : 0.0;
+        }
         return precioUnitarioOriginal * cantidad;
     }
+
 
     public Double getAhorroTotal() {
         return descuentoPromocion != null ? descuentoPromocion : 0.0;
@@ -53,5 +60,21 @@ public class DetallePedidoResponseDTO {
             return 0.0;
         }
         return (descuentoPromocion / (precioUnitarioOriginal * cantidad)) * 100;
+    }
+    // ✅ MÉTODO ADICIONAL: Verificar si tiene datos válidos
+    public Boolean tieneDatosCompletos() {
+        return precioUnitario != null &&
+                cantidad != null &&
+                cantidad > 0;
+    }
+
+    // ✅ MÉTODO ADICIONAL: Obtener subtotal actual (con o sin promoción)
+    public Double getSubtotalActual() {
+        if (precioUnitarioFinal != null && cantidad != null) {
+            return precioUnitarioFinal * cantidad;
+        }
+        return (precioUnitario != null && cantidad != null)
+                ? precioUnitario * cantidad
+                : 0.0;
     }
 }

@@ -29,7 +29,8 @@ public interface PromocionMapper extends BaseMapper<Promocion, PromocionResponse
     @Mapping(target = "articulos", ignore = true) // Se asigna en el service
     @Mapping(target = "imagenes", ignore = true)
     @Mapping(target = "sucursales", ignore = true) // Se asigna en el service
-    @Mapping(target = "precioPromocional", ignore = true) // Calculado automáticamente
+    // ✅ FIX: Mapear precioPromocional en lugar de ignorarlo
+    @Mapping(source = "precioPromocional", target = "precioPromocional")
     Promocion toEntity(PromocionRequestDTO dto);
 
     // ==================== UPDATE FROM DTO ====================
@@ -37,7 +38,8 @@ public interface PromocionMapper extends BaseMapper<Promocion, PromocionResponse
     @Mapping(target = "articulos", ignore = true) // Se maneja en el service
     @Mapping(target = "imagenes", ignore = true)
     @Mapping(target = "sucursales", ignore = true)
-    @Mapping(target = "precioPromocional", ignore = true)
+    // ✅ FIX: También mapear en updates
+    @Mapping(source = "precioPromocional", target = "precioPromocional")
     void updateEntityFromDTO(PromocionRequestDTO dto, @MappingTarget Promocion entity);
 
     // ==================== RESPONSE DTO → ENTITY ====================
