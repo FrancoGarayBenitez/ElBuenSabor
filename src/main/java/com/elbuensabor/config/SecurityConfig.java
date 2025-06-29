@@ -33,13 +33,13 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> {
                             jwt.jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter());
-                            // 🔍 DEBUG: Agregar logging para JWT processing
                             logger.debug("🔍 Configuring JWT authentication converter");
                         })
                 )
                 .authorizeHttpRequests(auth -> {
                     logger.debug("🔍 Configuring authorization rules");
                     auth
+                            // Endpoints públicos
                             .requestMatchers(
                                     "/api/auth0/register",
                                     "/api/categorias/**",
@@ -50,9 +50,15 @@ public class SecurityConfig {
                                     "/webhooks/mercadopago",
                                     "/img/**",
                                     "/static/**",
-                                    "/api/images/**" //
+                                    "/api/images/**"
                             ).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                            // Endpoints de admin
+                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            .requestMatchers("/api/usuarios/**").hasRole("ADMIN")  // ← AGREGADA ESTA LÍNEA
+
+                            // Endpoints autenticados
                             .requestMatchers(
                                     "/api/clientes/**",
                                     "/api/auth/**",
@@ -64,7 +70,7 @@ public class SecurityConfig {
                                     "/api/auth0/complete-profile",
                                     "/api/auth0/refresh-roles"
                             ).authenticated()
-                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                             .anyRequest().authenticated();
                 })
                 .httpBasic(httpBasic -> httpBasic.disable())

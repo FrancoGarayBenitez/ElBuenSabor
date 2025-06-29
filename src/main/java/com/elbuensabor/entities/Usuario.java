@@ -31,4 +31,7 @@ public class Usuario {
 
     @OneToOne(mappedBy = "usuario")
     private Cliente cliente;
+
+    @Column(nullable = false)
+    private boolean activo = true;
 }
