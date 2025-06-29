@@ -50,6 +50,7 @@ public class SecurityConfig {
                                     "/img/**",
                                     "/static/**",
                                     "/api/images/**",
+                                    "/api/imagenes/**",
                                     // ✅ NUEVOS: Promociones públicas para el catálogo
                                     "/api/promociones/vigentes",
                                     "/api/promociones/articulo/**",
