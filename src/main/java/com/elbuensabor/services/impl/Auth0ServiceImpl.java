@@ -30,6 +30,7 @@ public class Auth0ServiceImpl implements IAuth0Service {
     private final IClienteRepository clienteRepository;
     private final ClienteMapper clienteMapper;
     private final DomicilioMapper domicilioMapper;
+    private final Object userCreationLock = new Object();
 
     public Auth0ServiceImpl(IClienteRepository clienteRepository,
                             ClienteMapper clienteMapper,
@@ -105,8 +106,6 @@ public class Auth0ServiceImpl implements IAuth0Service {
 
     @Override
     public Map<String, Object> getCurrentUserProfile(Jwt jwt) {
-        logger.debug("Getting profile for Auth0 user: {}", jwt.getSubject());
-
         Map<String, Object> profile = new HashMap<>();
         profile.put("authenticated", true);
         profile.put("auth_provider", "auth0");
@@ -159,32 +158,48 @@ public class Auth0ServiceImpl implements IAuth0Service {
 
     @Override
     public Cliente findOrCreateClienteFromAuth0(String auth0Id, String email, String nombre, String apellido, Rol rol) {
-        logger.debug("Finding or creating cliente for Auth0 ID: {}", auth0Id);
-
-        // Buscar por Auth0 ID primero
-        Optional<Cliente> existingByAuth0Id = clienteRepository.findByUsuarioAuth0Id(auth0Id);
-        if (existingByAuth0Id.isPresent()) {
-            Cliente cliente = existingByAuth0Id.get();
-            updateClienteIfNeeded(cliente, email, nombre, apellido, rol);
-            return clienteRepository.save(cliente);
-        }
-
-        // Buscar por email si no es temporal
-        if (email != null && !isTemporaryEmail(email)) {
-            Optional<Cliente> existingByEmail = clienteRepository.findByUsuarioEmail(email);
-            if (existingByEmail.isPresent()) {
-                Cliente cliente = existingByEmail.get();
-                cliente.getUsuario().setAuth0Id(auth0Id);
+        synchronized (userCreationLock) {
+            // Buscar por Auth0 ID
+            Optional<Cliente> existingByAuth0Id = clienteRepository.findByUsuarioAuth0Id(auth0Id);
+            if (existingByAuth0Id.isPresent()) {
+                Cliente cliente = existingByAuth0Id.get();
                 updateClienteIfNeeded(cliente, email, nombre, apellido, rol);
                 return clienteRepository.save(cliente);
             }
+
+            // Buscar por email si no es temporal
+            if (email != null && !isTemporaryEmail(email)) {
+                Optional<Cliente> existingByEmail = clienteRepository.findByUsuarioEmail(email);
+                if (existingByEmail.isPresent()) {
+                    Cliente cliente = existingByEmail.get();
+                    cliente.getUsuario().setAuth0Id(auth0Id);
+                    updateClienteIfNeeded(cliente, email, nombre, apellido, rol);
+                    return clienteRepository.save(cliente);
+                }
+            }
+
+            // Double-check antes de crear (previene duplicados por race condition)
+            Optional<Cliente> doubleCheck = clienteRepository.findByUsuarioAuth0Id(auth0Id);
+            if (doubleCheck.isPresent()) {
+                return doubleCheck.get();
+            }
+
+            // Crear nuevo cliente
+            try {
+                return createNewClienteFromAuth0(auth0Id, email, nombre, apellido, rol);
+            } catch (Exception e) {
+                // Manejo de error de duplicate: intentar buscar de nuevo
+                if (e.getMessage() != null && e.getMessage().contains("Duplicate entry")) {
+                    logger.warn("Duplicate entry detected, attempting final search for Auth0 ID: {}", auth0Id);
+                    Optional<Cliente> finalSearch = clienteRepository.findByUsuarioAuth0Id(auth0Id);
+                    if (finalSearch.isPresent()) {
+                        return finalSearch.get();
+                    }
+                }
+                throw e;
+            }
         }
-
-        // Crear nuevo cliente
-        return createNewClienteFromAuth0(auth0Id, email, nombre, apellido, rol);
     }
-
-    // === MÉTODOS PRIVADOS ===
 
     private UserData extractUserData(Jwt jwt, Map<String, Object> userData) {
         String email = extractString(userData, "email", jwt.getClaimAsString("email"));
@@ -215,23 +230,19 @@ public class Auth0ServiceImpl implements IAuth0Service {
 
     private Rol extractRoleFromJwt(Jwt jwt) {
         Object rolesObj = jwt.getClaim(ROLES_CLAIM);
-        logger.debug("Extracting role from JWT for user: {}", jwt.getSubject());
 
         if (rolesObj instanceof List) {
             List<?> roles = (List<?>) rolesObj;
             if (!roles.isEmpty()) {
                 String role = roles.get(0).toString().toUpperCase();
                 try {
-                    Rol extractedRole = Rol.valueOf(role);
-                    logger.debug("Extracted role {} for user {}", extractedRole, jwt.getSubject());
-                    return extractedRole;
+                    return Rol.valueOf(role);
                 } catch (IllegalArgumentException e) {
                     logger.warn("Unknown role '{}' for user {}, defaulting to CLIENTE", role, jwt.getSubject());
                 }
             }
         }
 
-        logger.debug("Using default CLIENTE role for user {}", jwt.getSubject());
         return Rol.CLIENTE;
     }
 
@@ -268,8 +279,6 @@ public class Auth0ServiceImpl implements IAuth0Service {
     private void updateClienteIfNeeded(Cliente cliente, String email, String nombre, String apellido, Rol rol) {
         // Actualizar rol si cambió
         if (!cliente.getUsuario().getRol().equals(rol)) {
-            logger.info("Updating role for user {} from {} to {}",
-                    cliente.getUsuario().getAuth0Id(), cliente.getUsuario().getRol(), rol);
             cliente.getUsuario().setRol(rol);
         }
 
@@ -303,10 +312,11 @@ public class Auth0ServiceImpl implements IAuth0Service {
         cliente.setDomicilios(new ArrayList<>());
         cliente.setPedidos(new ArrayList<>());
 
-        return clienteRepository.save(cliente);
+        Cliente savedCliente = clienteRepository.save(cliente);
+        logger.info("Successfully created new cliente with ID: {} for Auth0 ID: {}",
+                savedCliente.getIdCliente(), auth0Id);
+        return savedCliente;
     }
-
-    // === MÉTODOS HELPER ===
 
     private void addDomicilioIfPresent(Cliente cliente, ClienteRegisterDTO registerDTO) {
         if (registerDTO.getDomicilio() != null) {
@@ -367,7 +377,6 @@ public class Auth0ServiceImpl implements IAuth0Service {
         return "client-credentials".equals(grantType) ? "machine-to-machine" : "user";
     }
 
-    // Clase interna para encapsular datos del usuario
     private static class UserData {
         final String email;
         final String nombre;
