@@ -52,8 +52,10 @@ public class SecurityConfig {
 ,
                                     "/img/**",
                                     "/static/**",
-                                    "/api/images/**" //
-                                    ).permitAll()
+                                    "/api/images/**",
+                                    "/api/imagenes/**"  // <-- AGREGALO AQUÍ
+
+                            ).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers(
                                     "/api/clientes/**",
