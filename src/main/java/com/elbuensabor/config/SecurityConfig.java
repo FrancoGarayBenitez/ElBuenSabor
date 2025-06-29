@@ -23,6 +23,7 @@ public class SecurityConfig {
     public SecurityConfig(CorsConfigurationSource corsConfigurationSource) {
         this.corsConfigurationSource = corsConfigurationSource;
     }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
@@ -32,13 +33,13 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> {
                             jwt.jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter());
+                            // 🔍 DEBUG: Agregar logging para JWT processing
                             logger.debug("🔍 Configuring JWT authentication converter");
                         })
                 )
                 .authorizeHttpRequests(auth -> {
                     logger.debug("🔍 Configuring authorization rules");
                     auth
-                            // ==================== ENDPOINTS PÚBLICOS ====================
                             .requestMatchers(
                                     "/api/auth0/register",
                                     "/api/categorias/**",
@@ -47,6 +48,8 @@ public class SecurityConfig {
                                     "/api/articulos-manufacturados/**",
                                     "/payment/**",
                                     "/webhooks/mercadopago",
+                                "/api/compras-insumo/**"
+,
                                     "/img/**",
                                     "/static/**",
                                     "/api/images/**",

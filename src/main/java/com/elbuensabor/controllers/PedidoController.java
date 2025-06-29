@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.elbuensabor.dto.response.FacturaResponseDTO;
 import com.elbuensabor.services.impl.PromocionPedidoService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,7 @@ public class PedidoController {
     private final IPedidoService pedidoService;
     private final IHorarioService horarioService;
     private final PromocionPedidoService promocionPedidoService;
+    private static final Logger logger = LoggerFactory.getLogger(PedidoController.class);
 
     @Autowired
     public PedidoController(IPedidoService pedidoService, IHorarioService horarioService, PromocionPedidoService promocionPedidoService) {
@@ -57,11 +60,7 @@ public class PedidoController {
     }
 
     // ==================== OBTENER PEDIDOS - AL FINAL ====================
-    @GetMapping
-    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findAll();
-        return ResponseEntity.ok(pedidos);
-    }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id) {
@@ -140,11 +139,6 @@ public class PedidoController {
         return ResponseEntity.ok(pedidos);
     }
 
-    @GetMapping("/listos")
-    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListos() {
-        List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListos();
-        return ResponseEntity.ok(pedidos);
-    }
 
     // Para delivery - pedidos listos para entregar
     @GetMapping("/listos-para-entrega")
@@ -193,12 +187,46 @@ public class PedidoController {
         return ResponseEntity.ok(pedidos);
     }
 
-    // ==================== FACTURA ====================
-    // Agregar método en la sección de endpoints específicos (ANTES de /{id})
+    /**
+     * Obtiene todos los pedidos listos (para vista de cocina)
+     */
+    @GetMapping("/listos")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListos() {
+        try {
+            List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListos();
+            return ResponseEntity.ok(pedidos);
+        } catch (Exception e) {
+            logger.error("Error al obtener pedidos listos: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Obtiene la factura asociada a un pedido específico
+     */
     @GetMapping("/{id}/factura")
     public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long id) {
-        FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
-        return ResponseEntity.ok(factura);
+        try {
+            FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
+            return ResponseEntity.ok(factura);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Obtiene todos los pedidos (endpoint básico para gestión)
+     */
+
+    @GetMapping
+    public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
+        try {
+            List<PedidoResponseDTO> pedidos = pedidoService.findAll();
+            return ResponseEntity.ok(pedidos);
+        } catch (Exception e) {
+            logger.error("Error al obtener todos los pedidos: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
     /**
      * POST /api/pedidos/preview-carrito
