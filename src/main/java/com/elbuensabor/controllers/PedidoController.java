@@ -143,6 +143,20 @@ public class PedidoController {
     }
 
     /**
+     * Obtiene todos los pedidos listos (para vista de cocina)
+     */
+    @GetMapping("/listos")
+    public ResponseEntity<List<PedidoResponseDTO>> getPedidosListos() {
+        try {
+            List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListos();
+            return ResponseEntity.ok(pedidos);
+        } catch (Exception e) {
+            logger.error("Error al obtener pedidos listos: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Obtiene la factura asociada a un pedido específico
      */
     @GetMapping("/{id}/factura")
