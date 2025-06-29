@@ -19,7 +19,9 @@ public interface ClienteMapper extends BaseMapper<Cliente, ClienteResponseDTO> {
      * Incluye el email del usuario asociado y domicilios con esPrincipal
      */
     @Override
+    @Mapping(source = "usuario.idUsuario", target = "idUsuario")     // ✅ NUEVO - ID del usuario
     @Mapping(source = "usuario.email", target = "email")
+    @Mapping(source = "usuario.rol", target = "rol")                // ✅ NUEVO - Rol desde usuario
     @Mapping(source = "domicilios", target = "domicilios", qualifiedByName = "toResponseDTO")
     ClienteResponseDTO toDTO(Cliente entity);
 

@@ -13,11 +13,13 @@ import java.util.List;
 @AllArgsConstructor
 public class ClienteResponseDTO {
     private Long idCliente;
+    private Long idUsuario;           // ✅ NUEVO - desde cliente.usuario.idUsuario
     private String nombre;
     private String apellido;
     private String email;
     private String telefono;
     private LocalDate fechaNacimiento;
-    private List<DomicilioResponseDTO> domicilios; // <-- Cambia a DomicilioResponseDTO
+    private List<DomicilioResponseDTO> domicilios;
     private ImagenDTO imagen;
+    private String rol;               // ✅ NUEVO - desde cliente.usuario.rol
 }
