@@ -58,7 +58,8 @@ public class SecurityConfig {
                                     "/api/promociones/vigentes",
                                     "/api/promociones/articulo/**",
                                     "/api/promociones/aplicables",
-                                    "/api/promociones/calcular-descuentos"
+                                    "/api/promociones/calcular-descuentos",
+                                    "/api/promociones/vigentes-completas"
                             ).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 

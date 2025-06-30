@@ -3,6 +3,7 @@ package com.elbuensabor.controllers;
 import com.elbuensabor.dto.request.PromocionAplicacionDTO;
 import com.elbuensabor.dto.request.PromocionRequestDTO;
 import com.elbuensabor.dto.response.PromocionCalculoDTO;
+import com.elbuensabor.dto.response.PromocionCompletaDTO;
 import com.elbuensabor.dto.response.PromocionResponseDTO;
 import com.elbuensabor.services.IPromocionService;
 import jakarta.validation.Valid;
@@ -221,5 +222,16 @@ public class PromocionController {
             logger.error("❌ Error eliminando promoción {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
+    }
+
+    @GetMapping("/vigentes-completas")
+    public ResponseEntity<List<PromocionCompletaDTO>> obtenerPromocionesVigentesCompletas() {
+        logger.info("📋 Consultando promociones vigentes completas con artículos");
+
+        List<PromocionCompletaDTO> promociones = promocionService.findPromocionesVigentesCompletas();
+
+        logger.info("✅ Encontradas {} promociones vigentes completas", promociones.size());
+
+        return ResponseEntity.ok(promociones);
     }
 }

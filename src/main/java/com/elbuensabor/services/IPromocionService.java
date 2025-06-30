@@ -3,6 +3,7 @@ package com.elbuensabor.services;
 import com.elbuensabor.dto.request.PromocionAplicacionDTO;
 import com.elbuensabor.dto.request.PromocionRequestDTO;
 import com.elbuensabor.dto.response.PromocionCalculoDTO;
+import com.elbuensabor.dto.response.PromocionCompletaDTO;
 import com.elbuensabor.dto.response.PromocionResponseDTO;
 import com.elbuensabor.entities.Promocion;
 
@@ -23,4 +24,6 @@ public interface IPromocionService extends IGenericService<Promocion, Long, Prom
 
     // ✅ MÉTODO CLAVE: CALCULAR DESCUENTOS PARA UN PEDIDO
     PromocionCalculoDTO calcularDescuentosParaPedido(Long idSucursal, List<PromocionAplicacionDTO> aplicaciones);
+
+    List<PromocionCompletaDTO> findPromocionesVigentesCompletas();
 }

@@ -2,7 +2,9 @@ package com.elbuensabor.services.impl;
 
 import com.elbuensabor.dto.request.PromocionAplicacionDTO;
 import com.elbuensabor.dto.request.PromocionRequestDTO;
+import com.elbuensabor.dto.response.ArticuloBasicoDTO;
 import com.elbuensabor.dto.response.PromocionCalculoDTO;
+import com.elbuensabor.dto.response.PromocionCompletaDTO;
 import com.elbuensabor.dto.response.PromocionResponseDTO;
 import com.elbuensabor.entities.Articulo;
 import com.elbuensabor.entities.Promocion;
@@ -220,5 +222,54 @@ public class PromocionServiceImpl extends GenericServiceImpl<Promocion, Long, Pr
 
         logger.info("💰 Descuento total calculado: ${}", calculo.getDescuentoTotal());
         return calculo;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PromocionCompletaDTO> findPromocionesVigentesCompletas() {
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalTime horaActual = LocalTime.now();
+
+        List<Promocion> promociones = repository.findPromocionesVigentes(ahora, horaActual);
+
+        logger.info("✅ Encontradas {} promociones vigentes completas", promociones.size());
+
+        return promociones.stream()
+                .map(this::convertirAPromocionCompleta)
+                .collect(Collectors.toList());
+    }
+
+    private PromocionCompletaDTO convertirAPromocionCompleta(Promocion promocion) {
+        PromocionCompletaDTO dto = new PromocionCompletaDTO();
+        dto.setIdPromocion(promocion.getIdPromocion());
+        dto.setDenominacion(promocion.getDenominacion());
+        dto.setDescripcionDescuento(promocion.getDescripcionDescuento());
+        dto.setFechaDesde(promocion.getFechaDesde());
+        dto.setFechaHasta(promocion.getFechaHasta());
+        dto.setHoraDesde(promocion.getHoraDesde());
+        dto.setHoraHasta(promocion.getHoraHasta());
+        dto.setTipoDescuento(String.valueOf(promocion.getTipoDescuento()));
+        dto.setValorDescuento(promocion.getValorDescuento());
+        dto.setActivo(promocion.getActivo());
+
+        // Convertir artículos a ArticuloBasicoDTO
+        List<ArticuloBasicoDTO> articulosDTO = promocion.getArticulos().stream()
+                .map(this::convertirAArticuloBasico)
+                .collect(Collectors.toList());
+        dto.setArticulos(articulosDTO);
+
+        return dto;
+    }
+
+    private ArticuloBasicoDTO convertirAArticuloBasico(Articulo articulo) {
+        ArticuloBasicoDTO dto = new ArticuloBasicoDTO();
+        dto.setIdArticulo(articulo.getIdArticulo());
+        dto.setDenominacion(articulo.getDenominacion());
+        dto.setPrecioVenta(articulo.getPrecioVenta());
+        // Agregar imagen principal si existe
+        if (articulo.getImagenes() != null && !articulo.getImagenes().isEmpty()) {
+            dto.setImagenUrl(articulo.getImagenes().get(0).getUrl());
+        }
+        return dto;
     }
 }
