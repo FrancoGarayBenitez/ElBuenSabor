@@ -64,6 +64,12 @@ public class SecurityConfig {
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                             // ==================== ENDPOINTS AUTENTICADOS ====================
+
+                            // Endpoints de admin
+                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            .requestMatchers("/api/usuarios/**").hasRole("ADMIN")  // ← AGREGADA ESTA LÍNEA
+
+                            // Endpoints autenticados
                             .requestMatchers(
                                     "/api/clientes/**",
                                     "/api/auth/**",

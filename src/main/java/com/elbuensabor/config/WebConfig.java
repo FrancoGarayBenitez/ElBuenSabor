@@ -1,9 +1,9 @@
-
-// WebConfig.java
 package com.elbuensabor.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -14,6 +14,9 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Value("${app.upload.dir:src/main/resources/static/img/}")
     private String uploadDir;
+
+    @Autowired
+    private ActiveUserInterceptor activeUserInterceptor;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -29,20 +32,23 @@ public class WebConfig implements WebMvcConfigurer {
                 .addResourceLocations("classpath:/static/")
                 .setCachePeriod(3600);
     }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(activeUserInterceptor)
+                .addPathPatterns("/api/**") // Aplicar a todos los endpoints de API
+                .excludePathPatterns(
+                        "/api/auth0/register",
+                        "/api/categorias/**",
+                        "/api/articulos-insumo/**",
+                        "/api/unidades-medida/**",
+                        "/api/articulos-manufacturados/**",
+                        "/payment/**",
+                        "/webhooks/**",
+                        "/img/**",
+                        "/static/**",
+                        "/api/images/**",
+                        "/api/*/debug" // Excluir endpoints de debug
+                ); // Excluir endpoints públicos
+    }
 }
-
-// Imports para ImageController.java (agregar estas al archivo ImageController)
-/*
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.Map;
-*/

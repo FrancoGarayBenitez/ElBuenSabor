@@ -13,4 +13,5 @@ public class UsuarioGridResponseDTO {
     private String rol;
     private String nombre;
     private String apellido;
+    private boolean activo;
 }
