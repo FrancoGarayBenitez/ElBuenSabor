@@ -19,7 +19,9 @@ public class DetallePedidoRequestDTO {
     @Min(value = 1, message = "La cantidad debe ser mayor a 0")
     private Integer cantidad;
 
-    // ✅ NUEVO: Observaciones específicas del producto
     @Size(max = 200, message = "Las observaciones del producto no pueden exceder 200 caracteres")
     private String observaciones;
+
+    // ✅ NUEVO: Promoción seleccionada por el cliente en el carrito
+    private Long idPromocionSeleccionada;
 }

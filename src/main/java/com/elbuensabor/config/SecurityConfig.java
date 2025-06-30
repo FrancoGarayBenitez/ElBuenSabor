@@ -33,13 +33,13 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> {
                             jwt.jwtAuthenticationConverter(new Auth0JwtAuthenticationConverter());
+                            // 🔍 DEBUG: Agregar logging para JWT processing
                             logger.debug("🔍 Configuring JWT authentication converter");
                         })
                 )
                 .authorizeHttpRequests(auth -> {
                     logger.debug("🔍 Configuring authorization rules");
                     auth
-                            // Endpoints públicos
                             .requestMatchers(
                                     "/api/auth0/register",
                                     "/api/categorias/**",
@@ -48,24 +48,33 @@ public class SecurityConfig {
                                     "/api/articulos-manufacturados/**",
                                     "/payment/**",
                                     "/webhooks/mercadopago",
-                                "/api/compras-insumo/**"
-,
+                                    "/api/compras-insumo/**",
                                     "/img/**",
                                     "/static/**",
                                     "/api/images/**",
-                                    "/api/imagenes/**"
+                                    "/api/imagenes/**",
+                                    // ✅ NUEVOS: Promociones públicas para el catálogo
+                                    "/api/promociones/vigentes",
+                                    "/api/promociones/articulo/**",
+                                    "/api/promociones/aplicables",
+                                    "/api/promociones/calcular-descuentos",
+                                    "/api/promociones/vigentes-completas"
                             ).permitAll()
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                            // ==================== ENDPOINTS AUTENTICADOS ====================
+
                             // Endpoints de admin
                             .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                            .requestMatchers("/api/usuarios/**").hasRole("ADMIN")  // ← AGREGADA ESTA LÍNEA
+                            .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
+                            .requestMatchers("/api/estadisticas/**").hasRole("ADMIN") // ← AGREGADA ESTA LÍNEA
 
                             // Endpoints autenticados
                             .requestMatchers(
                                     "/api/clientes/**",
                                     "/api/auth/**",
-                                    "/api/pedidos/**",
+                                    "/api/pedidos/**",        // Incluye preview-carrito
+                                    "/api/pedidos-mercadopago/**", // Si usas este controller
                                     "/api/auth0/login",
                                     "/api/auth0/me",
                                     "/api/auth0/validate",
@@ -73,6 +82,16 @@ public class SecurityConfig {
                                     "/api/auth0/complete-profile",
                                     "/api/auth0/refresh-roles"
                             ).authenticated()
+
+                            // ==================== ENDPOINTS DE ADMINISTRACIÓN ====================
+
+                            // ✅ NUEVOS: Gestión de promociones (admin)
+                            .requestMatchers(HttpMethod.POST, "/api/promociones").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PUT, "/api/promociones/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.DELETE, "/api/promociones/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.PATCH, "/api/promociones/**").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.GET, "/api/promociones").hasRole("ADMIN") // Lista completa
+                            .requestMatchers(HttpMethod.GET, "/api/promociones/*").hasRole("ADMIN") // Por ID
 
                             .anyRequest().authenticated();
                 })

@@ -40,8 +40,26 @@ public class Promocion {
     @Column(name = "descripcion_descuento")
     private String descripcionDescuento;
 
-    @Column(name = "precio_promocional", nullable = false)
+    // ✅ NUEVO: Tipo de descuento
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_descuento", nullable = false)
+    private TipoDescuento tipoDescuento = TipoDescuento.PORCENTUAL;
+
+    // ✅ RENOMBRADO: Más claro para manejar ambos tipos
+    @Column(name = "valor_descuento", nullable = false)
+    private Double valorDescuento; // % si es PORCENTUAL, $ si es MONTO_FIJO
+
+    // ✅ NUEVO: Precio final calculado automáticamente (opcional)
+    @Column(name = "precio_promocional")
     private Double precioPromocional;
+
+    // ✅ NUEVO: Estado activo/inactivo
+    @Column(nullable = false)
+    private Boolean activo = true;
+
+    // ✅ NUEVO: Para promociones que requieren cantidad mínima
+    @Column(name = "cantidad_minima")
+    private Integer cantidadMinima = 1;
 
     @ManyToMany
     @JoinTable(
@@ -56,4 +74,41 @@ public class Promocion {
 
     @ManyToMany(mappedBy = "promociones")
     private List<SucursalEmpresa> sucursales = new ArrayList<>();
+
+    // ✅ MÉTODOS DE UTILIDAD
+    public boolean estaVigente() {
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalTime horaActual = LocalTime.now();
+
+        return activo &&
+                ahora.isAfter(fechaDesde) &&
+                ahora.isBefore(fechaHasta) &&
+                horaActual.isAfter(horaDesde) &&
+                horaActual.isBefore(horaHasta);
+    }
+
+    public boolean aplicaParaArticulo(Long idArticulo) {
+        return articulos.stream()
+                .anyMatch(articulo -> articulo.getIdArticulo().equals(idArticulo));
+    }
+
+    public boolean aplicaParaSucursal(Long idSucursal) {
+        return sucursales.stream()
+                .anyMatch(sucursal -> sucursal.getIdSucursalEmpresa().equals(idSucursal));
+    }
+
+    public Double calcularDescuento(Double precioOriginal, Integer cantidad) {
+        if (!estaVigente() || cantidad < cantidadMinima) {
+            return 0.0;
+        }
+
+        switch (tipoDescuento) {
+            case PORCENTUAL:
+                return precioOriginal * cantidad * (valorDescuento / 100);
+            case MONTO_FIJO:
+                return Math.min(valorDescuento * cantidad, precioOriginal * cantidad);
+            default:
+                return 0.0;
+        }
+    }
 }
