@@ -48,8 +48,7 @@ public class SecurityConfig {
                                     "/api/articulos-manufacturados/**",
                                     "/payment/**",
                                     "/webhooks/mercadopago",
-                                "/api/compras-insumo/**"
-,
+                                    "/api/compras-insumo/**",
                                     "/img/**",
                                     "/static/**",
                                     "/api/images/**",
@@ -84,7 +83,7 @@ public class SecurityConfig {
                             ).authenticated()
 
                             // ==================== ENDPOINTS DE ADMINISTRACIÓN ====================
-                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                             // ✅ NUEVOS: Gestión de promociones (admin)
                             .requestMatchers(HttpMethod.POST, "/api/promociones").hasRole("ADMIN")
                             .requestMatchers(HttpMethod.PUT, "/api/promociones/**").hasRole("ADMIN")
