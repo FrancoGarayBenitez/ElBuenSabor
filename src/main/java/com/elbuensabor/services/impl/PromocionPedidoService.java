@@ -2,6 +2,7 @@ package com.elbuensabor.services.impl;
 
 import com.elbuensabor.dto.request.DetallePedidoRequestDTO;
 import com.elbuensabor.dto.request.PedidoRequestDTO;
+import com.elbuensabor.dto.request.PromocionAgrupadaDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
 import com.elbuensabor.entities.Articulo;
 import com.elbuensabor.entities.DetallePedido;
@@ -265,5 +266,39 @@ public class PromocionPedidoService {
         public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
         public PromocionInfoDTO getPromocionAplicada() { return promocionAplicada; }
         public void setPromocionAplicada(PromocionInfoDTO promocionAplicada) { this.promocionAplicada = promocionAplicada; }
+    }
+
+    public PromocionesAplicadasDTO aplicarPromocionesAPedidoConAgrupada(PedidoRequestDTO pedidoRequest) {
+        System.out.println("🎁 Procesando promociones con promoción agrupada...");
+
+        // Aplicar promociones individuales normalmente
+        PromocionesAplicadasDTO promocionesIndividuales = aplicarPromocionesAPedido(pedidoRequest);
+
+        // Si hay promoción agrupada, agregar su información
+        if (pedidoRequest.getPromocionAgrupada() != null) {
+            PromocionAgrupadaDTO promocionAgrupada = pedidoRequest.getPromocionAgrupada();
+
+            // Modificar el resumen para incluir la promoción agrupada
+            String resumenOriginal = promocionesIndividuales.getResumenPromociones();
+            String resumenConAgrupada = promocionAgrupada.getDenominacion() +
+                    " (" + promocionAgrupada.getValorDescuento() + "% OFF)" +
+                    (resumenOriginal.isEmpty() ? "" : " + " + resumenOriginal);
+
+            promocionesIndividuales.setResumenPromociones(resumenConAgrupada);
+
+            // Agregar el descuento de la promoción agrupada al total
+            double descuentoAdicional = promocionAgrupada.getDescuentoAplicado();
+            promocionesIndividuales.setDescuentoTotal(
+                    promocionesIndividuales.getDescuentoTotal() + descuentoAdicional
+            );
+            promocionesIndividuales.setSubtotalFinal(
+                    promocionesIndividuales.getSubtotalFinal() - descuentoAdicional
+            );
+
+            System.out.println("🎁 Promoción agrupada procesada: " + promocionAgrupada.getDenominacion());
+            System.out.println("🎁 Descuento adicional: $" + descuentoAdicional);
+        }
+
+        return promocionesIndividuales;
     }
 }

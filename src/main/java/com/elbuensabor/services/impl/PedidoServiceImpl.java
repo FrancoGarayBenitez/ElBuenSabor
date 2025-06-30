@@ -1,6 +1,7 @@
 package com.elbuensabor.services.impl;
 
 import com.elbuensabor.dto.request.PedidoRequestDTO;
+import com.elbuensabor.dto.request.PromocionAgrupadaDTO;
 import com.elbuensabor.dto.response.FacturaResponseDTO;
 import com.elbuensabor.dto.response.PedidoResponseDTO;
 import com.elbuensabor.entities.*;
@@ -175,7 +176,7 @@ public class PedidoServiceImpl implements IPedidoService {
         }
 
         // 5. Calcular totales
-        Double total = calcularTotal(pedidoRequest);
+        Double total = calcularTotalConPromocionAgrupada(pedidoRequest);
         Double totalCosto = calcularTotalCosto(pedidoRequest);
         pedido.setTotal(total);
         pedido.setTotalCosto(totalCosto);
@@ -193,7 +194,7 @@ public class PedidoServiceImpl implements IPedidoService {
         // 8. Aplicar promociones antes de crear detalles del pedido
         System.out.println("🎯 Aplicando promociones al pedido...");
         PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
-                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+                promocionPedidoService.aplicarPromocionesAPedidoConAgrupada(pedidoRequest);
 
         System.out.println("💰 Promociones procesadas: " + promocionesAplicadas.getResumenPromociones());
 
@@ -665,4 +666,50 @@ public class PedidoServiceImpl implements IPedidoService {
         return resumen;
     }
 
+    private Double calcularTotalConPromocionAgrupada(PedidoRequestDTO pedidoRequest) {
+        System.out.println("💰 Calculando total CON promoción agrupada...");
+
+        // Calcular subtotal original
+        double subtotalOriginal = 0.0;
+        for (var detalle : pedidoRequest.getDetalles()) {
+            Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo());
+            subtotalOriginal += articulo.getPrecioVenta() * detalle.getCantidad();
+        }
+
+        System.out.println("💰 Subtotal original: $" + subtotalOriginal);
+
+        // Aplicar descuento de promoción agrupada si existe
+        double descuentoPromocionAgrupada = 0.0;
+        if (pedidoRequest.getPromocionAgrupada() != null) {
+            PromocionAgrupadaDTO promocion = pedidoRequest.getPromocionAgrupada();
+
+            if ("PORCENTUAL".equals(promocion.getTipoDescuento())) {
+                descuentoPromocionAgrupada = (subtotalOriginal * promocion.getValorDescuento()) / 100;
+            } else {
+                descuentoPromocionAgrupada = Math.min(promocion.getValorDescuento(), subtotalOriginal);
+            }
+
+            System.out.println("🎁 Promoción agrupada aplicada: " + promocion.getDenominacion());
+            System.out.println("🎁 Descuento: $" + descuentoPromocionAgrupada);
+        }
+
+        // Aplicar otras promociones individuales (usar servicio existente)
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesIndividuales =
+                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+
+        double descuentoIndividual = promocionesIndividuales.getDescuentoTotal();
+        System.out.println("🎯 Descuento promociones individuales: $" + descuentoIndividual);
+
+        // Total con todos los descuentos
+        double subtotalConDescuentos = subtotalOriginal - descuentoPromocionAgrupada - descuentoIndividual;
+
+        // Agregar costo de envío si es delivery
+        if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
+            subtotalConDescuentos += 200; // Costo fijo de delivery
+            System.out.println("🚚 Costo delivery: $200");
+        }
+
+        System.out.println("💰 Total final con promoción agrupada: $" + subtotalConDescuentos);
+        return Math.max(0, subtotalConDescuentos); // No puede ser negativo
+    }
 }

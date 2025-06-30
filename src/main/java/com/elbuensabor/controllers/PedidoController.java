@@ -43,6 +43,24 @@ public class PedidoController {
     @PostMapping
     public ResponseEntity<?> crearPedido(@Valid @RequestBody PedidoRequestDTO pedidoRequest) {
 
+        // ✅ NUEVO: Log para debugging promociones
+        System.out.println("🔍 REQUEST RECIBIDO:");
+        System.out.println("📝 Cliente: " + pedidoRequest.getIdCliente());
+        System.out.println("📝 Tipo envío: " + pedidoRequest.getTipoEnvio());
+        System.out.println("📝 Cantidad productos: " + pedidoRequest.getDetalles().size());
+
+        // ✅ NUEVO: Verificar promoción agrupada
+        if (pedidoRequest.getPromocionAgrupada() != null) {
+            System.out.println("🎁 PROMOCIÓN AGRUPADA RECIBIDA:");
+            System.out.println("   - ID: " + pedidoRequest.getPromocionAgrupada().getIdPromocion());
+            System.out.println("   - Nombre: " + pedidoRequest.getPromocionAgrupada().getDenominacion());
+            System.out.println("   - Tipo: " + pedidoRequest.getPromocionAgrupada().getTipoDescuento());
+            System.out.println("   - Valor: " + pedidoRequest.getPromocionAgrupada().getValorDescuento() + "%");
+            System.out.println("   - Descuento: $" + pedidoRequest.getPromocionAgrupada().getDescuentoAplicado());
+        } else {
+            System.out.println("ℹ️ Sin promoción agrupada");
+        }
+
         // El controlador ahora recibe un objeto de estado completo
         HorarioStatusResponseDTO estadoHorario = horarioService.getEstadoHorario();
 

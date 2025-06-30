@@ -31,4 +31,8 @@ public class PedidoRequestDTO {
     @Valid
     @NotEmpty(message = "El pedido debe tener al menos un producto")
     private List<DetallePedidoRequestDTO> detalles;
+
+    // ✅ NUEVO: Promoción agrupada aplicada
+    @Valid
+    private PromocionAgrupadaDTO promocionAgrupada;
 }
