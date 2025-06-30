@@ -113,11 +113,53 @@ public class Auth0ServiceImpl implements IAuth0Service {
         profile.put("token_type", getTokenType(jwt));
 
         addClaimIfPresent(profile, jwt, "email");
-        addClaimIfPresent(profile, jwt, "name");
 
         Object roles = jwt.getClaim(ROLES_CLAIM);
         if (roles != null) {
             profile.put("roles", roles);
+        }
+
+        // 🔥 ESTE ES EL FIX PRINCIPAL
+        try {
+            String auth0Id = jwt.getSubject();
+            Optional<Cliente> clienteOpt = clienteRepository.findByUsuarioAuth0Id(auth0Id);
+
+            if (clienteOpt.isPresent()) {
+                Cliente cliente = clienteOpt.get();
+
+                // Datos del cliente desde la BD
+                profile.put("nombre", cliente.getNombre());
+                profile.put("apellido", cliente.getApellido());
+                profile.put("telefono", cliente.getTelefono());
+                profile.put("cliente_id", cliente.getIdCliente());
+
+                if (cliente.getUsuario() != null) {
+                    profile.put("rol", cliente.getUsuario().getRol().name());
+                    if (cliente.getUsuario().getEmail() != null) {
+                        profile.put("email", cliente.getUsuario().getEmail());
+                    }
+                }
+
+                logger.debug("✅ Profile loaded from DB for user: {}", auth0Id);
+            } else {
+                logger.warn("⚠️ Cliente not found for Auth0 ID: {}", auth0Id);
+                // Fallback a datos del JWT
+                String name = jwt.getClaimAsString("name");
+                if (name != null) {
+                    String[] nameParts = name.split(" ", 2);
+                    profile.put("nombre", nameParts[0]);
+                    profile.put("apellido", nameParts.length > 1 ? nameParts[1] : "");
+                }
+            }
+        } catch (Exception e) {
+            logger.error("❌ Error loading cliente data: {}", e.getMessage());
+            // Fallback seguro
+            String name = jwt.getClaimAsString("name");
+            if (name != null) {
+                String[] nameParts = name.split(" ", 2);
+                profile.put("nombre", nameParts[0]);
+                profile.put("apellido", nameParts.length > 1 ? nameParts[1] : "");
+            }
         }
 
         return profile;
