@@ -59,7 +59,8 @@ public class SecurityConfig {
 
                             // Endpoints de admin
                             .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                            .requestMatchers("/api/usuarios/**").hasRole("ADMIN")  // ← AGREGADA ESTA LÍNEA
+                            .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
+                            .requestMatchers("/api/estadisticas/**").hasRole("ADMIN") // ← AGREGADA ESTA LÍNEA
 
                             // Endpoints autenticados
                             .requestMatchers(
