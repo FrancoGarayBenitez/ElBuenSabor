@@ -127,6 +127,7 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
 
         // Solo agregar imagen si NO es para elaborar (es para venta)
         if (!insumoRequestDTO.getEsParaElaborar() && insumoRequestDTO.getImagen() != null) {
+
             Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
             // CLAVE: Establecer la relación bidireccional
             imagen.setArticulo(existingInsumo);
@@ -340,4 +341,5 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
         // Con cascada, no necesitamos guardar la imagen por separado
         return imagen;
     }
+
 }
