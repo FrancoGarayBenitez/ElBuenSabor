@@ -126,28 +126,52 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
     }
 
     // ==================== MÉTODOS AUXILIARES PRIVADOS ====================
+// ✅ CORRECCIÓN COMPLETA en FacturaServiceImpl.java - método calcularTotalesFactura
 
     private void calcularTotalesFactura(Factura factura, Pedido pedido) {
-        Double subtotal = pedido.getTotal();
+        logger.info("💰 === CALCULANDO TOTALES DE FACTURA ===");
+        logger.info("💰 Total del pedido recibido: ${}", pedido.getTotal());
+        logger.info("💰 Tipo de envío: {}", pedido.getTipoEnvio());
+
+        Double totalPedido = pedido.getTotal(); // Ya viene procesado desde PedidoService
+        Double subtotal;
         Double gastosEnvio = 0.0;
         Double descuento = 0.0;
 
-        // 🚚 DELIVERY: Agregar gastos de envío
+        // 🚚 DELIVERY: El total YA incluye gastos de envío, separamos para mostrar
         if (pedido.getTipoEnvio() == TipoEnvio.DELIVERY) {
             gastosEnvio = 200.0;
-            // Para DELIVERY: el total del pedido ya incluye gastos, los separamos
-            subtotal = subtotal - gastosEnvio;
+            subtotal = totalPedido - gastosEnvio;
+
+            logger.info("🚚 DELIVERY: Total ya incluye gastos de envío");
+            logger.info("   Total pedido: ${}", totalPedido);
+            logger.info("   Gastos envío incluidos: ${}", gastosEnvio);
+            logger.info("   Subtotal productos: ${}", subtotal);
+            logger.info("   ✅ NO se agregan gastos adicionales - ya están incluidos");
         }
 
-        // 🏪 TAKE_AWAY: Aplicar descuento del 10%
+        // 🏪 TAKE_AWAY: El total YA tiene descuento aplicado, calculamos para mostrar
         else if (pedido.getTipoEnvio() == TipoEnvio.TAKE_AWAY) {
-            descuento = subtotal * 0.10; // 10% de descuento
-            logger.info("✅ Descuento TAKE_AWAY aplicado: {}% sobre ${} = ${}",
-                    10, subtotal, descuento);
+            // El total viene con descuento del 10% ya aplicado
+            // Calculamos el subtotal original para mostrar el desglose
+            subtotal = totalPedido / 0.9; // Reverso del 10% de descuento
+            descuento = subtotal * 0.10; // 10% para mostrar en factura
+
+            logger.info("🏪 TAKE_AWAY: Total ya viene con descuento aplicado");
+            logger.info("   Total final (con descuento): ${}", totalPedido);
+            logger.info("   Subtotal original calculado: ${}", subtotal);
+            logger.info("   Descuento para mostrar (10%): ${}", descuento);
+            logger.info("   ✅ NO se aplica descuento adicional - solo se muestra");
         }
 
-        // Calcular total final
-        Double totalVenta = subtotal - descuento + gastosEnvio;
+        // ⚠️ OTROS TIPOS (fallback)
+        else {
+            subtotal = totalPedido;
+            logger.info("⚠️ Tipo de envío no reconocido, usando total como subtotal");
+        }
+
+        // ✅ IMPORTANTE: totalVenta SIEMPRE es el total del pedido (ya procesado correctamente)
+        Double totalVenta = totalPedido;
 
         // Asignar valores a la factura
         factura.setSubTotal(subtotal);
@@ -155,13 +179,24 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
         factura.setGastosEnvio(gastosEnvio);
         factura.setTotalVenta(totalVenta);
 
-        logger.info("💰 TOTALES CALCULADOS:");
+        logger.info("💰 === TOTALES FINALES DE FACTURA ===");
         logger.info("   Subtotal: ${}", subtotal);
         logger.info("   Descuento: ${}", descuento);
         logger.info("   Gastos Envío: ${}", gastosEnvio);
-        logger.info("   TOTAL: ${}", totalVenta);
-    }
+        logger.info("   TOTAL VENTA: ${}", totalVenta);
 
+        // ✅ Verificación matemática
+        double verificacion = subtotal + gastosEnvio - descuento;
+        logger.info("   ✅ Verificación: ${} + ${} - ${} = ${}",
+                subtotal, gastosEnvio, descuento, verificacion);
+
+        if (Math.abs(verificacion - totalVenta) > 0.01) {
+            logger.warn("⚠️ ADVERTENCIA: La verificación matemática no coincide!");
+            logger.warn("   Calculado: ${}, Esperado: ${}", verificacion, totalVenta);
+        } else {
+            logger.info("   ✅ Verificación matemática correcta");
+        }
+    }
     // ✅ MÉTODO ACTUALIZADO para mapear datos completos del pedido
     private FacturaResponseDTO mapearFacturaSimple(Factura factura) {
         FacturaResponseDTO dto = new FacturaResponseDTO();
