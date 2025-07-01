@@ -9,6 +9,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.elbuensabor.entities.Imagen;
+import com.elbuensabor.services.IImagenService;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
+import java.util.Map;
+
 import java.util.List;
 
 @RestController
@@ -22,6 +28,10 @@ public class ArticuloManufacturadoController {
     public ArticuloManufacturadoController(IArticuloManufacturadoService articuloManufacturadoService) {
         this.articuloManufacturadoService = articuloManufacturadoService;
     }
+
+    @Autowired
+    private IImagenService imagenService;
+
 
     // ==================== OPERACIONES CRUD BÁSICAS ====================
 
@@ -213,5 +223,69 @@ public class ArticuloManufacturadoController {
     public ResponseEntity<Boolean> seUsaEnPedidos(@PathVariable Long id) {
         boolean seUsa = articuloManufacturadoService.seUsaEnPedidos(id);
         return ResponseEntity.ok(seUsa);
+    }
+
+    // ==================== ENDPOINTS PARA MANEJO DE IMÁGENES ====================
+
+    @PostMapping("/{id}/imagen")
+    public ResponseEntity<?> uploadImagenManufacturado(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "denominacion", defaultValue = "Imagen del producto") String denominacion) {
+        try {
+            Imagen imagen = imagenService.uploadAndCreateForArticulo(file, denominacion, id);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "idImagen", imagen.getIdImagen(),
+                    "url", imagen.getUrl(),
+                    "denominacion", imagen.getDenominacion()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al subir imagen: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/imagen")
+    public ResponseEntity<?> updateImagenManufacturado(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "denominacion", defaultValue = "Imagen del producto") String denominacion) {
+        try {
+            Imagen imagen = imagenService.updateImagenArticulo(id, file, denominacion);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "idImagen", imagen.getIdImagen(),
+                    "url", imagen.getUrl(),
+                    "denominacion", imagen.getDenominacion(),
+                    "message", "Imagen actualizada correctamente"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al actualizar imagen: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}/imagenes")
+    public ResponseEntity<?> deleteImagenesManufacturado(@PathVariable Long id) {
+        try {
+            List<Imagen> imagenes = imagenService.findByArticulo(id);
+            for (Imagen imagen : imagenes) {
+                imagenService.deleteCompletely(imagen.getIdImagen());
+            }
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Todas las imágenes eliminadas correctamente"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al eliminar imágenes: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/imagenes")
+    public ResponseEntity<List<Imagen>> getImagenesManufacturado(@PathVariable Long id) {
+        List<Imagen> imagenes = imagenService.findByArticulo(id);
+        return ResponseEntity.ok(imagenes);
     }
 }

@@ -10,6 +10,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize; // <-- 1. IMPORTA LA ANOTACIÓN
 import org.springframework.web.bind.annotation.*;
 
+import com.elbuensabor.entities.Imagen;
+import com.elbuensabor.services.IImagenService;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
+import java.util.Map;
+
+
 import java.util.List;
 
 @RestController
@@ -22,6 +29,10 @@ public class ArticuloInsumoController {
     public ArticuloInsumoController(IArticuloInsumoService articuloInsumoService) {
         this.articuloInsumoService = articuloInsumoService;
     }
+
+    @Autowired
+    private IImagenService imagenService;
+
 
     // ==================== OPERACIONES CRUD BÁSICAS ====================
 
@@ -170,5 +181,82 @@ public class ArticuloInsumoController {
     public ResponseEntity<String> getEstadoStock(@PathVariable Long id) {
         String estado = articuloInsumoService.determinarEstadoStock(id);
         return ResponseEntity.ok(estado);
+    }
+
+    // ==================== ENDPOINTS PARA MANEJO DE IMÁGENES ====================
+
+    @PostMapping("/{id}/imagen")
+    public ResponseEntity<?> uploadImagenInsumo(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "denominacion", defaultValue = "Imagen del producto") String denominacion) {
+        try {
+            Imagen imagen = imagenService.uploadAndCreateForArticulo(file, denominacion, id);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "idImagen", imagen.getIdImagen(),
+                    "url", imagen.getUrl(),
+                    "denominacion", imagen.getDenominacion()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al subir imagen: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/imagen")
+    public ResponseEntity<?> updateImagenInsumo(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "denominacion", defaultValue = "Imagen del producto") String denominacion) {
+        try {
+            Imagen imagen = imagenService.updateImagenArticulo(id, file, denominacion);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "idImagen", imagen.getIdImagen(),
+                    "url", imagen.getUrl(),
+                    "denominacion", imagen.getDenominacion(),
+                    "message", "Imagen actualizada correctamente"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al actualizar imagen: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}/imagenes")
+    public ResponseEntity<?> deleteImagenesInsumo(@PathVariable Long id) {
+        try {
+            System.out.println("🗑️ Request para eliminar imágenes del artículo: " + id);
+
+            // 1. Buscar todas las imágenes del artículo
+            List<Imagen> imagenes = imagenService.findByArticulo(id);
+            System.out.println("🔍 Encontradas " + imagenes.size() + " imágenes para eliminar");
+
+            // 2. Eliminar cada imagen COMPLETAMENTE (archivo + BD)
+            for (Imagen imagen : imagenes) {
+                System.out.println("🔥 Eliminando imagen ID: " + imagen.getIdImagen() + " URL: " + imagen.getUrl());
+                imagenService.deleteCompletely(imagen.getIdImagen());
+            }
+
+            System.out.println("✅ Todas las imágenes eliminadas exitosamente");
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Todas las imágenes eliminadas correctamente",
+                    "imagenesEliminadas", imagenes.size()
+            ));
+        } catch (Exception e) {
+            System.err.println("❌ Error eliminando imágenes: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al eliminar imágenes: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/imagenes")
+    public ResponseEntity<List<Imagen>> getImagenesInsumo(@PathVariable Long id) {
+        List<Imagen> imagenes = imagenService.findByArticulo(id);
+        return ResponseEntity.ok(imagenes);
     }
 }
