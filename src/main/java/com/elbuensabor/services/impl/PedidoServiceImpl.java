@@ -724,11 +724,12 @@ public class PedidoServiceImpl implements IPedidoService {
         return Math.max(0, subtotalConDescuentos); // No puede ser negativo
     }
     /**
-     * ✅ NUEVO MÉTODO: Calcula el total CON descuento TAKE_AWAY
+     * ✅ MÉTODO CORREGIDO: Calcula el total CON descuento TAKE_AWAY
+     * APLICA LA MISMA LÓGICA QUE EL FRONTEND
      */
     @Transactional(readOnly = true)
     public Double calcularTotalConDescuentoTakeAway(PedidoRequestDTO pedidoRequest) {
-        System.out.println("🏪 === CALCULANDO TOTAL CON DESCUENTO TAKE_AWAY ===");
+        System.out.println("🏪 === CALCULANDO TOTAL CON DESCUENTO TAKE_AWAY (LÓGICA CORREGIDA) ===");
 
         // 1. Calcular subtotal original SIN descuentos
         double subtotalOriginal = 0.0;
@@ -738,47 +739,45 @@ public class PedidoServiceImpl implements IPedidoService {
         }
         System.out.println("💰 Subtotal original: $" + subtotalOriginal);
 
-        // 2. Aplicar descuento TAKE_AWAY (10% sobre subtotal original)
-        double porcentajeDescuento = 10.0; // Por defecto 10%
-        double descuentoTakeAway = subtotalOriginal * (porcentajeDescuento / 100);
-        System.out.println("🏪 Descuento TAKE_AWAY (" + porcentajeDescuento + "%): $" + descuentoTakeAway);
+        // 2. Usar el servicio de promociones para obtener cálculo COMPLETO
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
+                promocionPedidoService.aplicarPromocionesAPedidoConAgrupada(pedidoRequest);
 
-        // 3. Aplicar promociones individuales (si existen)
-        PromocionPedidoService.PromocionesAplicadasDTO promocionesIndividuales =
-                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
-        double descuentoPromociones = promocionesIndividuales.getDescuentoTotal();
-        System.out.println("🎯 Descuento promociones individuales: $" + descuentoPromociones);
+        double descuentoPromociones = promocionesAplicadas.getDescuentoTotal();
+        System.out.println("🎯 Descuento promociones (completo): $" + descuentoPromociones);
 
-        // 4. Aplicar descuento de promoción agrupada si existe
-        double descuentoPromocionAgrupada = 0.0;
-        if (pedidoRequest.getPromocionAgrupada() != null) {
-            PromocionAgrupadaDTO promocion = pedidoRequest.getPromocionAgrupada();
+        // 3. El servicio ya maneja productos con y sin promoción correctamente
+        double subtotalConPromociones = promocionesAplicadas.getSubtotalFinal();
+        System.out.println("💰 Subtotal con promociones (del servicio): $" + subtotalConPromociones);
 
-            if ("PORCENTUAL".equals(promocion.getTipoDescuento())) {
-                descuentoPromocionAgrupada = (subtotalOriginal * promocion.getValorDescuento()) / 100;
-            } else {
-                descuentoPromocionAgrupada = Math.min(promocion.getValorDescuento(), subtotalOriginal);
-            }
-
-            System.out.println("🎁 Promoción agrupada aplicada: " + promocion.getDenominacion());
-            System.out.println("🎁 Descuento promoción agrupada: $" + descuentoPromocionAgrupada);
+        // 4. Verificar que coincida con nuestro cálculo manual
+        double verificacion = subtotalOriginal - descuentoPromociones;
+        if (Math.abs(subtotalConPromociones - verificacion) > 0.01) {
+            System.out.println("⚠️ ADVERTENCIA: Diferencia en cálculo - Servicio: $" + subtotalConPromociones + " vs Manual: $" + verificacion);
         }
+        System.out.println("💰 Subtotal CON promociones: $" + subtotalConPromociones);
 
-        // 5. Calcular total con TODOS los descuentos
-        double totalConDescuentos = subtotalOriginal - descuentoTakeAway - descuentoPromociones - descuentoPromocionAgrupada;
+        // 5. ✅ CORREGIDO: Aplicar descuento TAKE_AWAY sobre subtotal CON promociones
+        double porcentajeDescuento = 10.0;
+        double descuentoTakeAway = subtotalConPromociones * (porcentajeDescuento / 100);
+        System.out.println("🏪 Descuento TAKE_AWAY (" + porcentajeDescuento + "% de $" + subtotalConPromociones + "): $" + descuentoTakeAway);
 
-        // 6. Agregar gastos de envío si es DELIVERY (normalmente no aplica para TAKE_AWAY)
+        // 6. Calcular total final
+        double totalFinal = subtotalConPromociones - descuentoTakeAway;
+
+        // 7. Agregar gastos de envío si es DELIVERY (normalmente no aplica para TAKE_AWAY)
         if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
-            totalConDescuentos += 200;
+            totalFinal += 200;
             System.out.println("🚚 Gastos envío DELIVERY: $200");
         }
 
-        double totalFinal = Math.max(0, totalConDescuentos);
-        System.out.println("💰 === RESUMEN FINAL ===");
+        totalFinal = Math.max(0, totalFinal);
+
+        System.out.println("💰 === RESUMEN FINAL (CORREGIDO) ===");
         System.out.println("💰 Subtotal original: $" + subtotalOriginal);
-        System.out.println("🏪 Descuento TAKE_AWAY: -$" + descuentoTakeAway);
-        System.out.println("🎯 Descuento promociones: -$" + descuentoPromociones);
-        System.out.println("🎁 Descuento promoción agrupada: -$" + descuentoPromocionAgrupada);
+        System.out.println("🎯 Descuento promociones (total): -$" + descuentoPromociones);
+        System.out.println("💰 Subtotal con promociones: $" + subtotalConPromociones);
+        System.out.println("🏪 Descuento TAKE_AWAY (sobre subtotal con promociones): -$" + descuentoTakeAway);
         System.out.println("💰 TOTAL FINAL: $" + totalFinal);
 
         return totalFinal;

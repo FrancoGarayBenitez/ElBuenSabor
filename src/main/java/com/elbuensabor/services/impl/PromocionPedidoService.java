@@ -269,36 +269,153 @@ public class PromocionPedidoService {
     }
 
     public PromocionesAplicadasDTO aplicarPromocionesAPedidoConAgrupada(PedidoRequestDTO pedidoRequest) {
-        System.out.println("🎁 Procesando promociones con promoción agrupada...");
+        System.out.println("🎁 === APLICANDO PROMOCIONES CON PROMOCIÓN AGRUPADA ===");
 
-        // Aplicar promociones individuales normalmente
+        // 1. Aplicar promociones individuales normalmente
         PromocionesAplicadasDTO promocionesIndividuales = aplicarPromocionesAPedido(pedidoRequest);
+        System.out.println("🎯 Promociones individuales procesadas. Descuento: $" + promocionesIndividuales.getDescuentoTotal());
 
-        // Si hay promoción agrupada, agregar su información
+        // 2. Si hay promoción agrupada, aplicarla a los detalles
         if (pedidoRequest.getPromocionAgrupada() != null) {
             PromocionAgrupadaDTO promocionAgrupada = pedidoRequest.getPromocionAgrupada();
+            System.out.println("🎁 Aplicando promoción agrupada: " + promocionAgrupada.getDenominacion());
 
-            // Modificar el resumen para incluir la promoción agrupada
-            String resumenOriginal = promocionesIndividuales.getResumenPromociones();
-            String resumenConAgrupada = promocionAgrupada.getDenominacion() +
-                    " (" + promocionAgrupada.getValorDescuento() + "% OFF)" +
-                    (resumenOriginal.isEmpty() ? "" : " + " + resumenOriginal);
-
-            promocionesIndividuales.setResumenPromociones(resumenConAgrupada);
-
-            // Agregar el descuento de la promoción agrupada al total
-            double descuentoAdicional = promocionAgrupada.getDescuentoAplicado();
-            promocionesIndividuales.setDescuentoTotal(
-                    promocionesIndividuales.getDescuentoTotal() + descuentoAdicional
-            );
-            promocionesIndividuales.setSubtotalFinal(
-                    promocionesIndividuales.getSubtotalFinal() - descuentoAdicional
-            );
-
-            System.out.println("🎁 Promoción agrupada procesada: " + promocionAgrupada.getDenominacion());
-            System.out.println("🎁 Descuento adicional: $" + descuentoAdicional);
+            // ✅ NUEVO: Aplicar promoción agrupada a cada detalle
+            aplicarPromocionAgrupadaADetalles(promocionesIndividuales, promocionAgrupada, pedidoRequest);
         }
 
+        System.out.println("💰 === RESUMEN FINAL ===");
+        System.out.println("💰 Subtotal original: $" + promocionesIndividuales.getSubtotalOriginal());
+        System.out.println("🎯 Descuento total: $" + promocionesIndividuales.getDescuentoTotal());
+        System.out.println("💰 Subtotal final: $" + promocionesIndividuales.getSubtotalFinal());
+
         return promocionesIndividuales;
+    }
+
+    // ✅ CORREGIDO: Método para aplicar promoción agrupada SOLO a productos incluidos
+    private void aplicarPromocionAgrupadaADetalles(
+            PromocionesAplicadasDTO promocionesAplicadas,
+            PromocionAgrupadaDTO promocionAgrupada,
+            PedidoRequestDTO pedidoRequest) {
+
+        System.out.println("🔄 Aplicando promoción agrupada a detalles individuales...");
+
+        // Obtener la promoción desde la base de datos
+        Optional<Promocion> promocionEntityOpt = promocionRepository.findById(promocionAgrupada.getIdPromocion());
+
+        if (promocionEntityOpt.isEmpty()) {
+            System.out.println("⚠️ Promoción agrupada no encontrada en BD, se omite aplicación a detalles");
+            return;
+        }
+
+        Promocion promocionEntity = promocionEntityOpt.get();
+        System.out.println("✅ Promoción encontrada: " + promocionEntity.getDenominacion());
+
+        // ✅ PASO 1: Identificar qué productos están incluidos en la promoción
+        List<Long> productosEnPromocion = new ArrayList<>();
+        double subtotalProductosEnPromocion = 0.0;
+
+        for (DetalleConPromocionDTO detalle : promocionesAplicadas.getDetallesConPromociones()) {
+            // ✅ VERIFICAR si este artículo está incluido en la promoción agrupada
+            if (promocionEntity.aplicaParaArticulo(detalle.getIdArticulo())) {
+                productosEnPromocion.add(detalle.getIdArticulo());
+                subtotalProductosEnPromocion += detalle.getSubtotalOriginal();
+                System.out.println("✅ Producto INCLUIDO en promoción: " + detalle.getDenominacionArticulo() +
+                        " (subtotal: $" + detalle.getSubtotalOriginal() + ")");
+            } else {
+                System.out.println("❌ Producto NO incluido en promoción: " + detalle.getDenominacionArticulo());
+            }
+        }
+
+        System.out.println("📊 Total productos en promoción: " + productosEnPromocion.size());
+        System.out.println("💰 Subtotal SOLO productos en promoción: $" + subtotalProductosEnPromocion);
+
+        if (productosEnPromocion.isEmpty()) {
+            System.out.println("⚠️ Ningún producto está incluido en la promoción, no se aplica descuento");
+            return;
+        }
+
+        // ✅ PASO 2: Calcular descuento solo sobre productos incluidos
+        double descuentoTotalAgrupada = promocionAgrupada.getDescuentoAplicado();
+        System.out.println("💰 Descuento total a aplicar: $" + descuentoTotalAgrupada);
+
+        double descuentoTotalAplicado = 0.0;
+
+        // ✅ PASO 3: Aplicar descuento SOLO a productos incluidos
+        for (DetalleConPromocionDTO detalle : promocionesAplicadas.getDetallesConPromociones()) {
+
+            // ✅ VERIFICAR si este producto está incluido en la promoción
+            if (!productosEnPromocion.contains(detalle.getIdArticulo())) {
+                System.out.println("⏭️ Saltando producto NO incluido: " + detalle.getDenominacionArticulo());
+                continue; // ← SALTAR productos que no están en la promoción
+            }
+
+            // ✅ APLICAR DESCUENTO solo a productos incluidos
+            // Calcular proporción de este detalle respecto al subtotal de productos EN promoción
+            double proporcion = detalle.getSubtotalOriginal() / subtotalProductosEnPromocion;
+            double descuentoParaEsteDetalle = descuentoTotalAgrupada * proporcion;
+
+            System.out.println("📦 Aplicando descuento a: " + detalle.getDenominacionArticulo());
+            System.out.println("   💰 Subtotal original: $" + detalle.getSubtotalOriginal());
+            System.out.println("   📊 Proporción: " + String.format("%.2f", proporcion * 100) + "%");
+            System.out.println("   🎁 Descuento asignado: $" + String.format("%.2f", descuentoParaEsteDetalle));
+
+            // ✅ ACTUALIZAR CAMPOS DEL DETALLE CON PROMOCIÓN AGRUPADA
+            double descuentoAnterior = detalle.getDescuentoAplicado();
+            double descuentoTotal = descuentoAnterior + descuentoParaEsteDetalle;
+
+            detalle.setDescuentoAplicado(descuentoTotal);
+            detalle.setTienePromocion(true);
+
+            // Calcular nuevo precio unitario final
+            double precioUnitarioFinal = detalle.getPrecioUnitarioOriginal() - (descuentoTotal / detalle.getCantidad());
+            detalle.setPrecioUnitarioFinal(precioUnitarioFinal);
+
+            // Calcular nuevo subtotal final
+            double subtotalFinal = detalle.getSubtotalOriginal() - descuentoTotal;
+            detalle.setSubtotalFinal(subtotalFinal);
+
+            // ✅ ACTUALIZAR INFORMACIÓN DE PROMOCIÓN APLICADA
+            if (detalle.getPromocionAplicada() == null) {
+                // Si no tenía promoción individual, crear info de promoción agrupada
+                detalle.setPromocionAplicada(new DetalleConPromocionDTO.PromocionInfoDTO());
+                detalle.getPromocionAplicada().setIdPromocion(promocionEntity.getIdPromocion());
+                detalle.getPromocionAplicada().setDenominacion(promocionEntity.getDenominacion());
+                detalle.getPromocionAplicada().setDescripcion("Promoción agrupada aplicada");
+                detalle.getPromocionAplicada().setTipoDescuento(promocionEntity.getTipoDescuento().toString());
+                detalle.getPromocionAplicada().setValorDescuento(promocionEntity.getValorDescuento());
+                detalle.getPromocionAplicada().setResumenDescuento(
+                        String.format("%s - Ahorro: $%.2f", promocionEntity.getDenominacion(), descuentoTotal)
+                );
+            } else {
+                // Si ya tenía promoción individual, actualizar el resumen
+                String resumenAnterior = detalle.getPromocionAplicada().getResumenDescuento();
+                detalle.getPromocionAplicada().setResumenDescuento(
+                        resumenAnterior + " + " + promocionEntity.getDenominacion() + ": $" + String.format("%.2f", descuentoParaEsteDetalle)
+                );
+            }
+
+            descuentoTotalAplicado += descuentoParaEsteDetalle;
+
+            System.out.println("   ✅ Actualizado - Precio final: $" + String.format("%.2f", precioUnitarioFinal) + " c/u");
+            System.out.println("   ✅ Actualizado - Subtotal final: $" + String.format("%.2f", subtotalFinal));
+        }
+
+        // ✅ ACTUALIZAR TOTALES GLOBALES
+        double descuentoTotalAnterior = promocionesAplicadas.getDescuentoTotal();
+        promocionesAplicadas.setDescuentoTotal(descuentoTotalAnterior + descuentoTotalAplicado);
+        promocionesAplicadas.setSubtotalFinal(promocionesAplicadas.getSubtotalOriginal() - promocionesAplicadas.getDescuentoTotal());
+
+        // Actualizar resumen
+        String resumenOriginal = promocionesAplicadas.getResumenPromociones();
+        String resumenConAgrupada = promocionAgrupada.getDenominacion() +
+                " (" + promocionAgrupada.getValorDescuento() + "% OFF)" +
+                (resumenOriginal.contains("Sin promociones") ? "" : " + " + resumenOriginal);
+
+        promocionesAplicadas.setResumenPromociones(resumenConAgrupada);
+
+        System.out.println("🎉 Promoción agrupada aplicada a " + productosEnPromocion.size() + " productos (de " +
+                promocionesAplicadas.getDetallesConPromociones().size() + " totales)");
+        System.out.println("🎁 Descuento total aplicado: $" + String.format("%.2f", descuentoTotalAplicado));
     }
 }
