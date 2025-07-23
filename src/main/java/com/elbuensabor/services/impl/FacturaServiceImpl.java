@@ -239,7 +239,7 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
                 dto.setDomicilioEntrega(domicilioDTO);
             }
 
-            // 🆕 DETALLES REALES DEL PEDIDO
+            // 🆕 DETALLES REALES DEL PEDIDO CON PROMOCIONES COMPLETAS
             if (pedido.getDetalles() != null && !pedido.getDetalles().isEmpty()) {
                 logger.info("🔍 DEBUG: Cargando {} detalles reales del pedido {}",
                         pedido.getDetalles().size(), pedido.getIdPedido());
@@ -247,10 +247,13 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
                 List<DetallePedidoResponseDTO> detallesDTO = new ArrayList<>();
 
                 for (DetallePedido detalle : pedido.getDetalles()) {
-                    logger.info("🔍 DEBUG: Detalle - {} x{} = ${}",
+                    logger.info("🔍 DEBUG PROMOCIONES: Detalle - {} x{} = ${} (orig: ${}, desc: ${})",
                             detalle.getArticulo().getDenominacion(),
                             detalle.getCantidad(),
-                            detalle.getSubtotal());
+                            detalle.getSubtotal(),
+                            detalle.getPrecioUnitarioOriginal(),
+                            detalle.getDescuentoPromocion());
+
                     DetallePedidoResponseDTO detalleDTO = new DetallePedidoResponseDTO();
                     detalleDTO.setIdDetallePedido(detalle.getIdDetallePedido());
                     detalleDTO.setCantidad(detalle.getCantidad());
@@ -263,22 +266,69 @@ public class FacturaServiceImpl extends GenericServiceImpl<Factura, Long, Factur
                         detalleDTO.setIdArticulo(articulo.getIdArticulo());
                         detalleDTO.setDenominacionArticulo(articulo.getDenominacion());
 
-                        // Calcular precio unitario desde subtotal y cantidad
-                        if (detalle.getCantidad() != null && detalle.getCantidad() > 0) {
-                            double precioUnitario = detalle.getSubtotal() / detalle.getCantidad();
-                            detalleDTO.setPrecioUnitario(precioUnitario);
-                        }
-
-                        // Otros campos del artículo si están disponibles
                         if (articulo.getUnidadMedida() != null) {
                             detalleDTO.setUnidadMedida(articulo.getUnidadMedida().getDenominacion());
                         }
+                    }
+
+                    // ✅ NUEVOS: Campos de promociones COMPLETOS
+                    if (detalle.getPrecioUnitarioOriginal() != null) {
+                        // Tiene información de promoción guardada
+                        detalleDTO.setPrecioUnitarioOriginal(detalle.getPrecioUnitarioOriginal());
+                        detalleDTO.setDescuentoPromocion(detalle.getDescuentoPromocion() != null ? detalle.getDescuentoPromocion() : 0.0);
+
+                        // Calcular precio unitario final
+                        double descuentoPorUnidad = detalleDTO.getDescuentoPromocion() / detalle.getCantidad();
+                        double precioUnitarioFinal = detalle.getPrecioUnitarioOriginal() - descuentoPorUnidad;
+                        detalleDTO.setPrecioUnitarioFinal(precioUnitarioFinal);
+                        detalleDTO.setPrecioUnitario(precioUnitarioFinal); // Para compatibilidad
+
+                        // Marcar que tiene promoción
+                        detalleDTO.setTienePromocion(detalle.getDescuentoPromocion() != null && detalle.getDescuentoPromocion() > 0);
+
+                        logger.info("✅ PROMOCIÓN DETECTADA: {} - Original: ${}, Final: ${}, Descuento: ${}",
+                                detalle.getArticulo().getDenominacion(),
+                                detalle.getPrecioUnitarioOriginal(),
+                                precioUnitarioFinal,
+                                detalleDTO.getDescuentoPromocion());
+                    } else {
+                        // Sin promoción - usar precio del artículo
+                        if (detalle.getArticulo() != null) {
+                            detalleDTO.setPrecioUnitarioOriginal(detalle.getArticulo().getPrecioVenta());
+                            detalleDTO.setPrecioUnitario(detalle.getArticulo().getPrecioVenta());
+                            detalleDTO.setPrecioUnitarioFinal(detalle.getArticulo().getPrecioVenta());
+                            detalleDTO.setDescuentoPromocion(0.0);
+                            detalleDTO.setTienePromocion(false);
+
+                            logger.info("✅ SIN PROMOCIÓN: {} - Precio: ${}",
+                                    detalle.getArticulo().getDenominacion(),
+                                    detalle.getArticulo().getPrecioVenta());
+                        }
+                    }
+
+                    // ✅ INFORMACIÓN DE PROMOCIÓN APLICADA (si existe)
+                    if (detalle.getPromocionAplicada() != null) {
+                        DetallePedidoResponseDTO.PromocionAplicadaDTO promocionDTO = new DetallePedidoResponseDTO.PromocionAplicadaDTO();
+                        promocionDTO.setIdPromocion(detalle.getPromocionAplicada().getIdPromocion());
+                        promocionDTO.setDenominacion(detalle.getPromocionAplicada().getDenominacion());
+                        promocionDTO.setDescripcion(detalle.getPromocionAplicada().getDescripcionDescuento());
+                        promocionDTO.setTipoDescuento(detalle.getPromocionAplicada().getTipoDescuento().toString());
+                        promocionDTO.setValorDescuento(detalle.getPromocionAplicada().getValorDescuento());
+                        promocionDTO.setResumenDescuento(
+                                String.format("%s - Ahorro: $%.2f",
+                                        detalle.getPromocionAplicada().getDenominacion(),
+                                        detalleDTO.getDescuentoPromocion())
+                        );
+                        detalleDTO.setPromocionAplicada(promocionDTO);
+
+                        logger.info("✅ INFO PROMOCIÓN: {}", promocionDTO.getDenominacion());
                     }
 
                     detallesDTO.add(detalleDTO);
                 }
 
                 dto.setDetallesPedido(detallesDTO);
+                logger.info("📋 {} detalles con información completa de promociones cargados", detallesDTO.size());
             }
         }
 

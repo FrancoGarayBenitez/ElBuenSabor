@@ -444,59 +444,145 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
         headerTable.addCell(headerCell);
         document.add(headerTable);
 
-        // Tabla de detalles con diseño premium
-        Table detallesTable = new Table(UnitValue.createPercentArray(new float[]{3, 1, 1, 1}))
+        // ✅ TABLA EXPANDIDA: Agregar columna para descuentos
+        Table detallesTable = new Table(UnitValue.createPercentArray(new float[]{3, 1, 1.2f, 1, 1.2f}))
                 .setWidth(UnitValue.createPercentValue(100))
                 .setBorder(new SolidBorder(PRIMARY_COLOR, 2));
 
-        // Encabezados con gradiente simulado
+        // ✅ ENCABEZADOS ACTUALIZADOS
         detallesTable.addHeaderCell(crearCeldaHeaderMejorada("PRODUCTO", boldFont));
         detallesTable.addHeaderCell(crearCeldaHeaderMejorada("CANT.", boldFont));
-        detallesTable.addHeaderCell(crearCeldaHeaderMejorada("PRECIO UNIT.", boldFont));
+        detallesTable.addHeaderCell(crearCeldaHeaderMejorada("PRECIO ORIG.", boldFont));
+        detallesTable.addHeaderCell(crearCeldaHeaderMejorada("DESCUENTO", boldFont));
         detallesTable.addHeaderCell(crearCeldaHeaderMejorada("SUBTOTAL", boldFont));
 
-        // ✅ DATOS REALES DEL PEDIDO con filas alternadas
+        // ✅ DATOS REALES CON PROMOCIONES DETALLADAS
         if (factura.getDetallesPedido() != null && !factura.getDetallesPedido().isEmpty()) {
-            logger.info("📦 Agregando {} productos reales al PDF", factura.getDetallesPedido().size());
+            logger.info("📦 Agregando {} productos con promociones al PDF", factura.getDetallesPedido().size());
 
             boolean isEvenRow = false;
 
             for (DetallePedidoResponseDTO detalle : factura.getDetallesPedido()) {
                 Color rowColor = isEvenRow ? LIGHT_GRAY : WHITE_COLOR;
 
-                // Nombre del producto
+                // 1. NOMBRE DEL PRODUCTO (con observaciones y promoción)
                 String nombreProducto = detalle.getDenominacionArticulo();
 
-                // Si tiene observaciones, las agregamos al nombre
+                // Agregar indicador de promoción si tiene
+                if (detalle.getTienePromocion() != null && detalle.getTienePromocion() && detalle.getPromocionAplicada() != null) {
+                    nombreProducto += "\n🎁 " + detalle.getPromocionAplicada().getDenominacion();
+                }
+
+                // Agregar observaciones si las tiene
                 if (detalle.getObservaciones() != null && !detalle.getObservaciones().trim().isEmpty()) {
                     nombreProducto += "\n💬 " + detalle.getObservaciones();
                 }
 
                 detallesTable.addCell(crearCeldaDetalleMejorada(nombreProducto, regularFont, TextAlignment.LEFT, rowColor));
+
+                // 2. CANTIDAD
                 detallesTable.addCell(crearCeldaDetalleMejorada(String.valueOf(detalle.getCantidad()), boldFont, TextAlignment.CENTER, rowColor));
-                detallesTable.addCell(crearCeldaDetalleMejorada(CURRENCY_FORMAT.format(detalle.getPrecioUnitario()), regularFont, TextAlignment.RIGHT, rowColor));
-                detallesTable.addCell(crearCeldaDetalleMejorada(CURRENCY_FORMAT.format(detalle.getSubtotal()), boldFont, TextAlignment.RIGHT, rowColor));
+
+                // 3. ✅ PRECIO ORIGINAL (antes de descuento)
+                Double precioOriginal = detalle.getPrecioUnitarioOriginal();
+                if (precioOriginal == null) {
+                    precioOriginal = detalle.getPrecioUnitario(); // Fallback
+                }
+
+                String precioOriginalTexto = CURRENCY_FORMAT.format(precioOriginal);
+
+                // Si tiene promoción, mostrar precio tachado
+                if (detalle.getTienePromocion() != null && detalle.getTienePromocion() &&
+                        detalle.getDescuentoPromocion() != null && detalle.getDescuentoPromocion() > 0) {
+
+                    // Crear párrafo con texto tachado (simulado con "~~")
+                    precioOriginalTexto = "~~" + precioOriginalTexto + "~~";
+                }
+
+                detallesTable.addCell(crearCeldaDetalleMejorada(precioOriginalTexto, regularFont, TextAlignment.RIGHT, rowColor));
+
+                // 4. ✅ DESCUENTO APLICADO
+                String descuentoTexto = "-";
+                if (detalle.getDescuentoPromocion() != null && detalle.getDescuentoPromocion() > 0) {
+                    descuentoTexto = "-" + CURRENCY_FORMAT.format(detalle.getDescuentoPromocion());
+                }
+
+                Cell descuentoCell = crearCeldaDetalleMejorada(descuentoTexto, regularFont, TextAlignment.RIGHT, rowColor);
+                if (!descuentoTexto.equals("-")) {
+                    descuentoCell.setFontColor(new DeviceRgb(220, 53, 69)); // Color rojo para descuentos
+                }
+                detallesTable.addCell(descuentoCell);
+
+                // 5. ✅ SUBTOTAL FINAL (precio con descuento aplicado)
+                Double subtotalFinal = detalle.getSubtotal();
+                String subtotalTexto = CURRENCY_FORMAT.format(subtotalFinal);
+
+                Cell subtotalCell = crearCeldaDetalleMejorada(subtotalTexto, boldFont, TextAlignment.RIGHT, rowColor);
+
+                // Si tiene descuento, resaltar el precio final en verde
+                if (detalle.getTienePromocion() != null && detalle.getTienePromocion()) {
+                    subtotalCell.setFontColor(new DeviceRgb(40, 167, 69)); // Verde para precio con descuento
+                }
+
+                detallesTable.addCell(subtotalCell);
 
                 isEvenRow = !isEvenRow;
 
-                logger.debug("✅ Producto agregado: {} x{} = {}",
+                // ✅ LOG DETALLADO
+                logger.debug("✅ Producto: {} x{} - Original: {} | Descuento: {} | Final: {}",
                         detalle.getDenominacionArticulo(),
                         detalle.getCantidad(),
-                        CURRENCY_FORMAT.format(detalle.getSubtotal()));
+                        CURRENCY_FORMAT.format(precioOriginal),
+                        descuentoTexto,
+                        CURRENCY_FORMAT.format(subtotalFinal));
             }
         } else {
             logger.warn("⚠️ No se encontraron detalles del pedido para mostrar en el PDF");
 
             // Fila de fallback si no hay detalles
-            detallesTable.addCell(crearCeldaDetalleMejorada("Sin detalles disponibles", regularFont, TextAlignment.LEFT, WHITE_COLOR));
-            detallesTable.addCell(crearCeldaDetalleMejorada("-", regularFont, TextAlignment.CENTER, WHITE_COLOR));
-            detallesTable.addCell(crearCeldaDetalleMejorada("-", regularFont, TextAlignment.RIGHT, WHITE_COLOR));
-            detallesTable.addCell(crearCeldaDetalleMejorada("-", regularFont, TextAlignment.RIGHT, WHITE_COLOR));
+            for (int i = 0; i < 5; i++) {
+                detallesTable.addCell(crearCeldaDetalleMejorada("Sin datos", regularFont, TextAlignment.CENTER, WHITE_COLOR));
+            }
         }
 
         document.add(detallesTable);
 
-        // ✅ OBSERVACIONES DEL PEDIDO (si las hay) con mejor diseño
+        // ✅ RESUMEN DE PROMOCIONES (si hay)
+        long productosConPromocion = factura.getDetallesPedido().stream()
+                .mapToLong(d -> (d.getTienePromocion() != null && d.getTienePromocion()) ? 1 : 0)
+                .sum();
+
+        if (productosConPromocion > 0) {
+            double totalDescuentos = factura.getDetallesPedido().stream()
+                    .mapToDouble(d -> d.getDescuentoPromocion() != null ? d.getDescuentoPromocion() : 0.0)
+                    .sum();
+
+            Table promoTable = new Table(1)
+                    .setWidth(UnitValue.createPercentValue(100))
+                    .setMarginTop(15);
+
+            Cell promoCell = new Cell()
+                    .setBorder(new SolidBorder(new DeviceRgb(220, 53, 69), 2))
+                    .setBackgroundColor(new DeviceRgb(255, 243, 245))
+                    .setPadding(15);
+
+            promoCell.add(new Paragraph("🎁 PROMOCIONES APLICADAS")
+                    .setFont(boldFont)
+                    .setFontSize(12)
+                    .setFontColor(new DeviceRgb(220, 53, 69))
+                    .setMarginBottom(8));
+
+            promoCell.add(new Paragraph(String.format("%d producto(s) con promoción - Ahorro total: %s",
+                    productosConPromocion, CURRENCY_FORMAT.format(totalDescuentos)))
+                    .setFont(regularFont)
+                    .setFontSize(11)
+                    .setFontColor(TEXT_DARK));
+
+            promoTable.addCell(promoCell);
+            document.add(promoTable);
+        }
+
+        // ✅ OBSERVACIONES DEL PEDIDO (código existente sin cambios)
         if (factura.getObservacionesPedido() != null && !factura.getObservacionesPedido().trim().isEmpty()) {
             Table obsTable = new Table(1)
                     .setWidth(UnitValue.createPercentValue(100))
@@ -504,7 +590,7 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
 
             Cell obsCell = new Cell()
                     .setBorder(new SolidBorder(PRIMARY_COLOR, 2))
-                    .setBackgroundColor(new DeviceRgb(255, 249, 246)) // Fondo muy sutil terracota
+                    .setBackgroundColor(new DeviceRgb(255, 249, 246))
                     .setPadding(15);
 
             obsCell.add(new Paragraph("💬 OBSERVACIONES DEL PEDIDO")
@@ -522,7 +608,7 @@ public class FacturaPdfServiceImpl implements IFacturaPdfService {
             document.add(obsTable);
         }
 
-        logger.info("📋 Detalles del pedido agregados exitosamente al PDF");
+        logger.info("📋 Detalles del pedido con promociones agregados exitosamente al PDF");
     }
 
     private void agregarTotales(Document document, FacturaResponseDTO factura, PdfFont boldFont, PdfFont regularFont) {
