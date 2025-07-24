@@ -56,6 +56,10 @@ public class PedidoServiceImpl implements IPedidoService {
 
     @Autowired
     private PromocionPedidoService promocionPedidoService;
+
+    @Autowired
+    private WebSocketNotificationService webSocketNotificationService;
+
     private PedidoResponseDTO enrichPedidoResponse(Pedido pedido) {
         PedidoResponseDTO response = pedidoMapper.toDTO(pedido);
 
@@ -274,6 +278,12 @@ public class PedidoServiceImpl implements IPedidoService {
         response.setStockSuficiente(validarStockDisponible(pedidoRequest));
         response.setTiempoEstimadoTotal(calcularTiempoEstimado(pedidoRequest));
 
+        // Notificar creación de pedido via WebSocket
+        webSocketNotificationService.notificarNuevoPedido(
+                pedidoFinal.getIdPedido(),
+                pedidoFinal.getCliente().getNombre() + " " + pedidoFinal.getCliente().getApellido()
+        );
+
         return response;
     }
 
@@ -343,6 +353,14 @@ public class PedidoServiceImpl implements IPedidoService {
         actualizarStockDesdePedido(pedido);
 
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
+
+        // Notificar cambio de estado vía WebSocket
+        webSocketNotificationService.notificarCambioEstado(
+                id,
+                "EN_PREPARACION",
+                pedidoActualizado.getCliente().getUsuario().getAuth0Id()
+        );
+
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
@@ -358,6 +376,39 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedido.setEstado(Estado.LISTO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
+
+        // Obtener datos del cliente
+        String clienteAuthId = null;
+        String clienteNombre = "Cliente";
+
+        try {
+            if (pedidoActualizado.getCliente() != null) {
+                clienteNombre = pedidoActualizado.getCliente().getNombre() + " " +
+                        pedidoActualizado.getCliente().getApellido();
+
+                if (pedidoActualizado.getCliente().getUsuario() != null) {
+                    clienteAuthId = pedidoActualizado.getCliente().getUsuario().getAuth0Id();
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("⚠️ Error obteniendo datos del cliente para notificación: {}", e.getMessage());
+        }
+
+        // Notificar cambio de estado general
+        webSocketNotificationService.notificarCambioEstado(
+                id,
+                "LISTO",
+                clienteAuthId
+        );
+
+        // ✅ NUEVO: Si es delivery, notificar específicamente a delivery
+        if (pedidoActualizado.getTipoEnvio() == TipoEnvio.DELIVERY) {
+            webSocketNotificationService.notificarPedidoListoParaDelivery(
+                    id,
+                    clienteNombre
+            );
+        }
+
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
@@ -375,6 +426,14 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedido.setEstado(Estado.ENTREGADO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
+
+        // Notificar cambio de estado vía WebSocket
+        webSocketNotificationService.notificarCambioEstado(
+                id,
+                "ENTREGADO",
+                pedidoActualizado.getCliente().getUsuario().getAuth0Id()
+        );
+
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
@@ -395,6 +454,31 @@ public class PedidoServiceImpl implements IPedidoService {
 
         pedido.setEstado(Estado.CANCELADO);
         Pedido pedidoActualizado = pedidoRepository.save(pedido);
+
+        // ✅ NUEVO: Usar notificación específica de cancelación
+        String clienteAuthId = null;
+        String clienteNombre = "Cliente";
+
+        try {
+            if (pedidoActualizado.getCliente() != null) {
+                clienteNombre = pedidoActualizado.getCliente().getNombre() + " " +
+                        pedidoActualizado.getCliente().getApellido();
+
+                if (pedidoActualizado.getCliente().getUsuario() != null) {
+                    clienteAuthId = pedidoActualizado.getCliente().getUsuario().getAuth0Id();
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("⚠️ Error obteniendo datos del cliente para notificación: {}", e.getMessage());
+        }
+
+        // Notificar cancelación específicamente
+        webSocketNotificationService.notificarCancelacionPedido(
+                id,
+                clienteNombre,
+                clienteAuthId
+        );
+
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
 
