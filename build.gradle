@@ -30,6 +30,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.mapstruct:mapstruct:1.5.5.Final'
 
+	// WebSocket
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+	implementation 'org.springframework.security:spring-security-messaging'
+
 	// Auth0
 	implementation 'com.auth0:auth0-spring-security-api:1.5.3'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
